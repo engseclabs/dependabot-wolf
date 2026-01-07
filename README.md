@@ -89,19 +89,32 @@ We have `glob` locked at 10.4.5 via `overrides` to simulate a dependency conflic
 **Why this is tricky:**
 - `glob` is a **transitive dependency** (not directly installed)
 - Dependabot detects vulnerability but solution isn't obvious
-- Fix requires either:
-  1. Remove `overrides` lock and let rimraf use glob@10.5.0+
-  2. Update rimraf to version that depends on patched glob
+- Fix requires updating **parent dependency** (rimraf 5.0.0 → 6.1.2)
+- rimraf@6.x depends on glob@^13.0.0 (patched version)
 - Understanding transitive relationship is key
 
 **When Wolf activates:**
-1. Dependabot detects glob vulnerability
-2. May create unclear PR or no PR at all (due to override lock)
-3. Wolf creates draft PR with CVE details + `@github-copilot workspace`
-4. Copilot analyzes dependency tree: "Remove glob override or update rimraf"
-5. Engineer understands the transitive relationship and implements fix
+1. Dependabot detects glob vulnerability (no open PR due to override lock)
+2. Wolf creates draft PR that:
+   - Updates rimraf from 5.0.0 to 6.1.2 (which uses glob@^13.0.0)
+   - Removes glob override from package.json
+   - Regenerates package-lock.json with patched glob
+3. PR includes CVE details + `@github-copilot workspace` for AI-assisted review
+4. Engineer reviews and merges the fix
 
-**Real-world parallel:** This matches the playlab scenario where `@sentry/vite-plugin@3.3.1` → `glob@vulnerable` required updating the Sentry plugin, not glob directly.
+**Real-world parallel:** This matches the [playlab PR #2234](https://github.com/playlab-education/playlab/pull/2234) where `@sentry/vite-plugin@3.3.1` → `glob@vulnerable` required updating `@sentry/vite-plugin` to `4.6.1`, not glob directly.
+
+**The Fix:**
+```diff
+  "devDependencies": {
+-   "rimraf": "5.0.0"
++   "rimraf": "^6.1.2"
+  },
+- "overrides": {
+-   "glob": "10.4.5"
+- }
+```
+Result: rimraf@6.1.2 → glob@13.0.0 (patched, no vulnerability)
 
 ## License
 
