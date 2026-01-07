@@ -11,22 +11,25 @@ your-app
         └─> vulnerable-package@1.0.0 ⚠️ CVE-2024-1234
 ```
 
-**Dependabot detects it, but can't fix it** because:
-- The vulnerable package isn't in your `package.json`
-- It's a transitive dependency (dependency of a dependency)
-- The fix requires updating the parent package
+**Dependabot raises the alert but explicitly says it cannot create a PR** because:
+- The vulnerable package isn't directly in your `package.json`
+- Fixing it requires updating the parent dependency
+- That update is either:
+  - Outside your allowed version range, or
+  - A major/breaking version upgrade, or
+  - Ambiguous (multiple parents, conflicting constraints)
 
-**Result:** Alert sits unfixed. Your team ignores it because the fix isn't obvious.
+**Result:** Alert shows "Dependabot cannot update to a non-vulnerable version." Your team doesn't know which parent to update.
 
 ## The Solution
 
-Dependabot Wolf automatically:
-1. Finds transitive dependency alerts without open PRs
-2. Identifies which parent dependency needs updating
-3. Creates a PR that updates the parent → pulls in the patched version
-4. Includes full CVE context so your team understands why
+When Dependabot says "cannot create a PR," Wolf steps in:
+1. Scans for transitive dependency alerts without open PRs
+2. Analyzes `package-lock.json` to find the parent dependency
+3. Updates the parent to latest version (even if major/breaking)
+4. Creates a draft PR with the fix + full CVE context
 
-**Your team gets:** A complete PR with the fix, ready to review and merge.
+**Your team gets:** A concrete fix to review instead of a vague alert. You can see exactly what needs updating and why.
 
 ## Quick Start
 
@@ -124,10 +127,10 @@ graph LR
 ## FAQ
 
 **Q: Why not just use Dependabot?**
-A: Dependabot can't figure out transitive dependency fixes. It detects the vulnerability but doesn't know which parent package to update.
+A: Dependabot detects transitive vulnerabilities but explicitly says it "cannot create a PR" when the fix requires updating a parent dependency outside the allowed range, a major upgrade, or has ambiguous constraints.
 
 **Q: Will Wolf create PRs for everything?**
-A: No, only for transitive dependency alerts without an open Dependabot PR.
+A: No, only for transitive dependency alerts where Dependabot raised an alert but couldn't create a PR.
 
 **Q: Is it safe to auto-merge Wolf PRs?**
 A: No! These are draft PRs for review. Major version bumps may have breaking changes.

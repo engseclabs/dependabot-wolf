@@ -29,7 +29,10 @@ jobs:
 
             console.log(`Found ${alerts.data.length} open Dependabot alerts`);
 
-            // Filter: transitive dependencies without open PRs
+            // Filter for transitive dependency alerts without open PRs
+            // These are alerts where Dependabot says "cannot create a PR" because:
+            // - Fix requires updating parent dependency
+            // - Update is outside allowed range, major/breaking, or ambiguous
             const transitiveAlerts = [];
             for (const alert of alerts.data) {
               const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
@@ -38,13 +41,13 @@ jobs:
 
               console.log(`Checking alert ${alert.number} (${cveId}): ${packageName} - ${isTransitive ? 'transitive' : 'direct'}`);
 
-              // Skip non-transitive dependencies
+              // Skip non-transitive dependencies (Dependabot can handle these)
               if (!isTransitive) {
                 console.log(`  -> Skipping: not a transitive dependency`);
                 continue;
               }
 
-              // Try to find OPEN PRs created by dependabot for this dependency
+              // Check if Dependabot created a PR for this
               const prs = await github.rest.pulls.list({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -52,21 +55,20 @@ jobs:
                 per_page: 100
               });
 
-              // Check if any OPEN PR is for this dependency
               const hasOpenPR = prs.data.some(pr => {
                 return pr.user.login === 'dependabot[bot]' &&
                        pr.title.includes(packageName);
               });
 
               if (!hasOpenPR) {
-                console.log(`  -> Found transitive alert without PR: ${packageName}`);
+                console.log(`  -> Found transitive alert where Dependabot cannot create PR: ${packageName}`);
                 transitiveAlerts.push(alert);
               } else {
                 console.log(`  -> Has open PR, skipping`);
               }
             }
 
-            console.log(`Found ${transitiveAlerts.length} transitive dependency alerts without PRs`);
+            console.log(`Found ${transitiveAlerts.length} transitive alerts where Dependabot cannot create PRs`);
             return transitiveAlerts;
 
       - name: Setup Node.js
@@ -233,9 +235,10 @@ jobs:
                         `### What Changed\n\n` +
                         `${fixDescription}\n\n` +
                         `### Why Wolf Created This PR\n\n` +
-                        `This vulnerability is in a transitive dependency (dependency of a dependency). ` +
-                        `Dependabot detected it but couldn't create a fix PR automatically. ` +
-                        `Wolf identified the parent package that needs updating and created this PR.\n\n` +
+                        `This vulnerability is in a **transitive dependency** (not directly in your \`package.json\`). ` +
+                        `Dependabot raised an alert but explicitly said it "cannot create a PR" because the fix requires ` +
+                        `updating a parent dependency—likely a major/breaking version upgrade. ` +
+                        `Wolf identified the parent package and created this fix for you to review.\n\n` +
                         `### Testing Required\n\n` +
                         `- [ ] Run your test suite to ensure no breaking changes\n` +
                         `- [ ] Verify the vulnerability is resolved with \`npm audit\`\n` +
