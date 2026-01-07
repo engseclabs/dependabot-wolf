@@ -6,15 +6,22 @@ Automated GitHub Action that fixes stuck Dependabot security alerts using GitHub
 
 When Dependabot security alerts remain unfixed, Dependabot Wolf automatically creates PR proposals using GitHub Copilot Workspace.
 
+**Perfect for transitive dependency vulnerabilities:**
+- Vulnerability is in a sub-dependency (e.g., `qs` via `body-parser`)
+- Dependabot creates PR to update parent dependency without explaining why
+- Teams reject/ignore PRs without security context
+- **Wolf provides full context + Copilot assistance** to understand and fix
+
 **"Stuck" alerts are those without open PRs:**
-- Dependabot couldn't create a PR (dependency conflicts, peer dependency mismatches)
-- Dependabot PR was closed (breaking changes, test failures, rejected by maintainers)
+- Dependabot PR was closed (unclear purpose, breaking changes, rejected)
+- Dependabot couldn't create a PR (dependency conflicts, peer mismatches)
+- Alert is ignored (team doesn't understand the transitive relationship)
 
 **Dependabot Wolf:**
 1. Finds all open Dependabot alerts without open PRs
-2. Creates a draft PR for each stuck alert with full context
-3. Tags `@github-copilot workspace` to propose a fix
-4. Engineers use Copilot to interactively resolve the issue
+2. Creates draft PR with CVE details, affected packages, and dependency tree context
+3. Tags `@github-copilot workspace` for AI-assisted analysis
+4. Engineers use Copilot to understand transitive relationships and implement fix
 
 ## How It Works
 
@@ -64,25 +71,34 @@ The workflow requires the following permissions (configured via the PAT):
 
 ## Testing
 
-This repo demonstrates a **genuine transitive dependency conflict** that Dependabot cannot resolve:
+This repo demonstrates a **transitive dependency vulnerability** that requires coordinated upgrades:
 
 ### The Scenario
-Multiple packages transitively depend on `body-parser@1.19.0`, which in turn depends on vulnerable `qs@6.5.2`:
-- `express@4.18.0` → `body-parser@1.19.0` → `qs@6.5.2` (vulnerable)
-- `@remix-run/express@2.0.0` → transitive `body-parser` → `qs`
-- `@remix-run/dev@2.0.0` → transitive `body-parser` → `qs`
+We depend on `body-parser@1.19.0`, which transitively depends on vulnerable `qs@6.7.0`:
+```
+package.json: body-parser@1.19.0
+  └─> qs@6.7.0 (vulnerable - CVE-2024-45801, GHSA-hrpp-h998-j3pp)
+```
 
-**Why Dependabot cannot fix this:**
-- `qs` vulnerability requires upgrading to 6.11.0+
-- But `body-parser@1.19.0` locks `qs` at the old version
-- Upgrading requires updating multiple root dependencies simultaneously
-- This is a **diamond dependency problem** Dependabot cannot solve
+**Why Dependabot struggles:**
+- Dependabot detects the `qs` vulnerability
+- Cannot update just `qs` (it's a transitive dependency)
+- May create PR to update `body-parser` but doesn't explain WHY
+- Teams reject PRs without understanding the security context
+
+**The solution requires insight:**
+- Update `body-parser@1.19.0` → `1.20.3+`
+- This automatically pulls in safe `qs@6.13.0+` (no direct changes needed)
+- Requires understanding the transitive dependency relationship
 
 **When Wolf activates:**
-1. Dependabot detects `qs` vulnerability but CANNOT create a PR
-2. Alert remains open with no PR (genuinely stuck)
-3. Wolf creates a draft PR with `@github-copilot workspace` tag
-4. Engineers use Copilot to analyze and propose coordinated package updates
+1. Dependabot creates PR OR alert remains without PR
+2. Team closes PR or ignores alert (unclear what to do)
+3. Wolf creates draft PR with full context and `@github-copilot workspace`
+4. Copilot analyzes: "Update body-parser to fix transitive qs vulnerability"
+5. Engineer understands and implements the fix
+
+**See example:** https://github.com/playlab-education/playlab/pull/2234
 
 ## License
 
