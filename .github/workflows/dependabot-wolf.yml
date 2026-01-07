@@ -5,7 +5,7 @@ on:
   workflow_dispatch:     # Manual trigger
 
 jobs:
-  fix-stuck-alerts:
+  fix-transitive-dependencies:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Find stuck Dependabot alerts
+      - name: Find transitive dependency alerts
         id: find-alerts
         uses: actions/github-script@v7
         with:
@@ -29,14 +29,20 @@ jobs:
 
             console.log(`Found ${alerts.data.length} open Dependabot alerts`);
 
-            // Filter: no associated PR = stuck
-            const stuck = [];
+            // Filter: transitive dependencies without open PRs
+            const transitiveAlerts = [];
             for (const alert of alerts.data) {
-              console.log(`Checking alert ${alert.number}: ${alert.security_advisory.cve_id || alert.security_advisory.ghsa_id}`);
-
-              // Check if Dependabot created a PR for this
+              const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
               const packageName = alert.dependency.package.name;
-              const ecosystem = alert.dependency.package.ecosystem;
+              const isTransitive = alert.dependency.relationship === 'transitive';
+
+              console.log(`Checking alert ${alert.number} (${cveId}): ${packageName} - ${isTransitive ? 'transitive' : 'direct'}`);
+
+              // Skip non-transitive dependencies
+              if (!isTransitive) {
+                console.log(`  -> Skipping: not a transitive dependency`);
+                continue;
+              }
 
               // Try to find OPEN PRs created by dependabot for this dependency
               const prs = await github.rest.pulls.list({
@@ -53,15 +59,15 @@ jobs:
               });
 
               if (!hasOpenPR) {
-                console.log(`  -> Stuck! No open PR found for ${packageName}`);
-                stuck.push(alert);
+                console.log(`  -> Found transitive alert without PR: ${packageName}`);
+                transitiveAlerts.push(alert);
               } else {
                 console.log(`  -> Has open PR, skipping`);
               }
             }
 
-            console.log(`Found ${stuck.length} stuck alerts`);
-            return stuck;
+            console.log(`Found ${transitiveAlerts.length} transitive dependency alerts without PRs`);
+            return transitiveAlerts;
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -73,26 +79,25 @@ jobs:
           git config --global user.name "dependabot-wolf[bot]"
           git config --global user.email "dependabot-wolf[bot]@users.noreply.github.com"
 
-      - name: Create fix PR for each stuck alert
+      - name: Fix transitive dependency vulnerabilities
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DEPENDABOT_PAT }}
           script: |
-            const stuck = ${{ steps.find-alerts.outputs.result }};
+            const transitiveAlerts = ${{ steps.find-alerts.outputs.result }};
             const fs = require('fs');
             const { execSync } = require('child_process');
 
-            console.log(`Processing ${stuck.length} stuck alerts`);
+            console.log(`Processing ${transitiveAlerts.length} transitive dependency alerts`);
 
-            for (const alert of stuck) {
+            for (const alert of transitiveAlerts) {
               const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
               const packageName = alert.dependency.package.name;
-              const isTransitive = alert.dependency.relationship === 'transitive';
 
               // Create branch name
               const branch = `wolf/fix-${cveId}-${packageName}`.replace(/[^a-zA-Z0-9-]/g, '-');
 
-              console.log(`Creating branch ${branch} for ${cveId} (transitive: ${isTransitive})`);
+              console.log(`Creating branch ${branch} for transitive dependency ${packageName} (${cveId})`);
 
               try {
                 // Get default branch ref
@@ -122,113 +127,90 @@ jobs:
                 const vulnerability = alert.security_advisory.vulnerabilities[0];
                 const patchedVersions = vulnerability?.first_patched_version?.identifier || 'See advisory';
 
-                let fixApplied = false;
                 let fixDescription = '';
 
-                // Attempt to fix based on dependency type
-                if (isTransitive) {
-                  console.log(`Attempting transitive dependency fix for ${packageName}`);
+                // Read package.json and package-lock.json
+                const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
 
-                  // Read package.json and package-lock.json
-                  const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-                  const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
+                // Find parent package that depends on the vulnerable transitive dependency
+                let parentPackage = null;
+                let parentVersion = null;
 
-                  // Find parent package that depends on the vulnerable transitive dependency
-                  let parentPackage = null;
-                  let parentVersion = null;
+                // Check all dependencies in package.json
+                const allDeps = {
+                  ...packageJson.dependencies,
+                  ...packageJson.devDependencies,
+                  ...packageJson.peerDependencies,
+                  ...packageJson.optionalDependencies
+                };
 
-                  // Check all dependencies in package.json
-                  const allDeps = {
-                    ...packageJson.dependencies,
-                    ...packageJson.devDependencies,
-                    ...packageJson.peerDependencies,
-                    ...packageJson.optionalDependencies
-                  };
+                // Look through package-lock to find which direct dependency brings in the vulnerable package
+                for (const [depName, depVersion] of Object.entries(allDeps)) {
+                  const lockEntry = packageLock.packages?.[`node_modules/${depName}`];
+                  if (lockEntry?.dependencies?.[packageName]) {
+                    console.log(`Found parent dependency: ${depName}@${depVersion} → ${packageName}`);
+                    parentPackage = depName;
+                    parentVersion = depVersion;
+                    break;
+                  }
+                }
 
-                  // Look through package-lock to find which direct dependency brings in the vulnerable package
-                  for (const [depName, depVersion] of Object.entries(allDeps)) {
-                    const lockEntry = packageLock.packages?.[`node_modules/${depName}`];
-                    if (lockEntry?.dependencies?.[packageName]) {
-                      console.log(`Found ${depName}@${depVersion} depends on ${packageName}`);
-                      parentPackage = depName;
-                      parentVersion = depVersion;
-                      break;
+                if (parentPackage) {
+                  console.log(`Updating parent dependency ${parentPackage} to fix transitive ${packageName} vulnerability`);
+
+                  // Remove override if it exists and write to disk BEFORE npm install
+                  let removedOverride = false;
+                  if (packageJson.overrides && packageJson.overrides[packageName]) {
+                    console.log(`Removing override locking ${packageName} to ${packageJson.overrides[packageName]}`);
+                    delete packageJson.overrides[packageName];
+                    if (Object.keys(packageJson.overrides).length === 0) {
+                      delete packageJson.overrides;
                     }
+                    removedOverride = true;
+
+                    // Write package.json to disk BEFORE running npm install
+                    fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+                    console.log('Wrote package.json without override to disk');
                   }
 
-                  if (parentPackage) {
-                    console.log(`Attempting to update parent dependency ${parentPackage} to get patched ${packageName}`);
+                  // Try to update parent package to latest
+                  try {
+                    console.log(`Running: npm install ${parentPackage}@latest`);
+                    execSync(`npm install ${parentPackage}@latest`, { stdio: 'inherit' });
 
-                    // Remove override if it exists and write to disk BEFORE npm install
-                    let removedOverride = false;
-                    if (packageJson.overrides && packageJson.overrides[packageName]) {
-                      console.log(`Removing override locking ${packageName} to ${packageJson.overrides[packageName]}`);
-                      delete packageJson.overrides[packageName];
-                      if (Object.keys(packageJson.overrides).length === 0) {
-                        delete packageJson.overrides;
-                      }
-                      removedOverride = true;
+                    // Get the new version
+                    const updatedPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                    const newParentVersion = updatedPackageJson.dependencies?.[parentPackage] ||
+                                           updatedPackageJson.devDependencies?.[parentPackage];
 
-                      // Write package.json to disk BEFORE running npm install
+                    fixDescription = `Updated \`${parentPackage}\` from \`${parentVersion}\` to \`${newParentVersion}\` to resolve transitive \`${packageName}\` vulnerability.`;
+
+                    if (removedOverride) {
+                      fixDescription += `\n\nRemoved \`overrides.${packageName}\` to allow npm to resolve the patched version.`;
+                    }
+
+                    execSync('git add package.json package-lock.json', { stdio: 'inherit' });
+                    execSync(`git commit -m "Update ${parentPackage} to fix ${packageName} vulnerability (${cveId})"`, { stdio: 'inherit' });
+                  } catch (updateError) {
+                    console.error(`Failed to update ${parentPackage}: ${updateError.message}`);
+
+                    // Fallback: just remove override and regenerate lock file
+                    if (removedOverride) {
                       fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
-                      console.log('Wrote package.json without override to disk');
-                    }
-
-                    // Try to update parent package to latest
-                    try {
-                      console.log(`Running: npm install ${parentPackage}@latest`);
-                      execSync(`npm install ${parentPackage}@latest`, { stdio: 'inherit' });
-
-                      // Get the new version
-                      const updatedPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-                      const newParentVersion = updatedPackageJson.dependencies?.[parentPackage] ||
-                                             updatedPackageJson.devDependencies?.[parentPackage];
-
-                      fixDescription = `Updated \`${parentPackage}\` from \`${parentVersion}\` to \`${newParentVersion}\` to resolve transitive \`${packageName}\` vulnerability.`;
-
-                      if (removedOverride) {
-                        fixDescription += `\n\nRemoved \`overrides.${packageName}\` to allow npm to resolve the patched version.`;
-                      }
-
+                      execSync('rm -f package-lock.json', { stdio: 'inherit' });
+                      execSync('npm install', { stdio: 'inherit' });
                       execSync('git add package.json package-lock.json', { stdio: 'inherit' });
-                      execSync(`git commit -m "Update ${parentPackage} to fix ${packageName} vulnerability (${cveId})"`, { stdio: 'inherit' });
+                      execSync(`git commit -m "Remove ${packageName} override and regenerate lock file"`, { stdio: 'inherit' });
 
-                      fixApplied = true;
-                    } catch (updateError) {
-                      console.error(`Failed to update ${parentPackage}: ${updateError.message}`);
-
-                      // Fallback: just remove override and regenerate lock file
-                      if (removedOverride) {
-                        fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
-                        execSync('rm -f package-lock.json', { stdio: 'inherit' });
-                        execSync('npm install', { stdio: 'inherit' });
-                        execSync('git add package.json package-lock.json', { stdio: 'inherit' });
-                        execSync(`git commit -m "Remove ${packageName} override and regenerate lock file"`, { stdio: 'inherit' });
-
-                        fixDescription = `Removed \`overrides.${packageName}\` and regenerated package-lock.json. Could not automatically update ${parentPackage}.`;
-                      } else {
-                        fixDescription = `Could not automatically fix transitive dependency. Manual update of ${parentPackage} required.`;
-                      }
+                      fixDescription = `Removed \`overrides.${packageName}\` and regenerated package-lock.json. Could not automatically update ${parentPackage}.`;
+                    } else {
+                      fixDescription = `Could not automatically fix transitive dependency. Manual update of ${parentPackage} required.`;
                     }
-                  } else {
-                    console.log(`Could not identify parent dependency for ${packageName}`);
-                    fixDescription = `Could not automatically identify which dependency to update for transitive ${packageName} vulnerability.`;
                   }
                 } else {
-                  console.log(`Attempting direct dependency update for ${packageName}`);
-
-                  // Try direct update
-                  try {
-                    execSync(`npm install ${packageName}@latest`, { stdio: 'inherit' });
-                    execSync('git add package.json package-lock.json', { stdio: 'inherit' });
-                    execSync(`git commit -m "Update ${packageName} to fix ${cveId}"`, { stdio: 'inherit' });
-
-                    fixDescription = `Updated ${packageName} to latest version to fix vulnerability.`;
-                    fixApplied = true;
-                  } catch (installError) {
-                    console.error(`Failed to update ${packageName} directly: ${installError.message}`);
-                    fixDescription = `Could not automatically update ${packageName}. Manual intervention required.`;
-                  }
+                  console.log(`Could not identify parent dependency for ${packageName}`);
+                  fixDescription = `Could not automatically identify which dependency to update for transitive ${packageName} vulnerability.`;
                 }
 
                 // Push branch
@@ -242,23 +224,22 @@ jobs:
                   head: branch,
                   base: 'main',
                   draft: true,
-                  body: `## 🤖 Dependabot Wolf - Automated Fix Attempt\n\n` +
+                  body: `## 🐺 Dependabot Wolf - Transitive Dependency Fix\n\n` +
                         `**CVE:** ${cveId}\n` +
                         `**Severity:** ${alert.security_advisory.severity}\n` +
-                        `**Package:** ${packageName}\n` +
-                        `**Dependency Type:** ${isTransitive ? 'Transitive' : 'Direct'}\n` +
+                        `**Vulnerable Package:** ${packageName} (transitive dependency)\n` +
                         `**Patched Version:** ${patchedVersions}\n` +
-                        `**Advisory URL:** ${alert.security_advisory.html_url}\n\n` +
+                        `**Advisory:** ${alert.security_advisory.html_url}\n\n` +
                         `### What Changed\n\n` +
                         `${fixDescription}\n\n` +
+                        `### Why Wolf Created This PR\n\n` +
+                        `This vulnerability is in a transitive dependency (dependency of a dependency). ` +
+                        `Dependabot detected it but couldn't create a fix PR automatically. ` +
+                        `Wolf identified the parent package that needs updating and created this PR.\n\n` +
                         `### Testing Required\n\n` +
-                        `- [ ] Run tests to ensure no breaking changes\n` +
-                        `- [ ] Verify the vulnerability is resolved\n` +
+                        `- [ ] Run your test suite to ensure no breaking changes\n` +
+                        `- [ ] Verify the vulnerability is resolved with \`npm audit\`\n` +
                         `- [ ] Review dependency tree with \`npm ls ${packageName}\`\n\n` +
-                        `### For Review\n\n` +
-                        `${isTransitive ?
-                          `This is a **transitive dependency** vulnerability. The fix involves updating parent dependencies or removing version locks to allow npm to resolve the patched version.\n\n` :
-                          `This is a **direct dependency** vulnerability. The fix attempts to update to the latest version.\n\n`}` +
                         `@github-copilot workspace Please review this fix and suggest any additional changes needed.`
                 });
 
