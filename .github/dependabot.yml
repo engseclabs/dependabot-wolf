@@ -6,11 +6,6 @@ updates:
       interval: "daily"
     open-pull-requests-limit: 10
     ignore:
-      # Ignore webpack to simulate stuck alerts
-      - dependency-name: "webpack"
-        update-types: ["version-update:semver-major", "version-update:semver-minor", "version-update:semver-patch"]
-      # Ignore React to simulate stuck alerts due to breaking changes
-      - dependency-name: "react"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "react-dom"
-        update-types: ["version-update:semver-major"]
+      # Ignore axios and lodash to simulate stuck alerts
+      - dependency-name: "axios"
+      - dependency-name: "lodash"
