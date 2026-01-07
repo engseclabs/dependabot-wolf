@@ -71,34 +71,37 @@ The workflow requires the following permissions (configured via the PAT):
 
 ## Testing
 
-This repo demonstrates a **transitive dependency vulnerability** that requires coordinated upgrades:
+This repo demonstrates **glob CLI command injection vulnerability (CVE-2025-64756)** via transitive dependency - matching real-world scenario from [playlab PR #2234](https://github.com/playlab-education/playlab/pull/2234).
 
 ### The Scenario
-We depend on `body-parser@1.19.0`, which transitively depends on vulnerable `qs@6.7.0`:
 ```
-package.json: body-parser@1.19.0
-  └─> qs@6.7.0 (vulnerable - CVE-2024-45801, GHSA-hrpp-h998-j3pp)
+package.json: rimraf@5.0.0 (devDependency)
+  └─> glob@10.4.5 (VULNERABLE - CVE-2025-64756, GHSA-5j98-mcp5-4vw2)
 ```
 
-**Why Dependabot struggles:**
-- Dependabot detects the `qs` vulnerability
-- Cannot update just `qs` (it's a transitive dependency)
-- May create PR to update `body-parser` but doesn't explain WHY
-- Teams reject PRs without understanding the security context
+We have `glob` locked at 10.4.5 via `overrides` to simulate a dependency conflict.
 
-**The solution requires insight:**
-- Update `body-parser@1.19.0` → `1.20.3+`
-- This automatically pulls in safe `qs@6.13.0+` (no direct changes needed)
-- Requires understanding the transitive dependency relationship
+**The Vulnerability:**
+- glob CLI versions 10.2.0 to 10.4.5 have command injection via `-c/--cmd` option
+- Allows arbitrary command execution through malicious filenames
+- Patched in glob@10.5.0+
+
+**Why this is tricky:**
+- `glob` is a **transitive dependency** (not directly installed)
+- Dependabot detects vulnerability but solution isn't obvious
+- Fix requires either:
+  1. Remove `overrides` lock and let rimraf use glob@10.5.0+
+  2. Update rimraf to version that depends on patched glob
+- Understanding transitive relationship is key
 
 **When Wolf activates:**
-1. Dependabot creates PR OR alert remains without PR
-2. Team closes PR or ignores alert (unclear what to do)
-3. Wolf creates draft PR with full context and `@github-copilot workspace`
-4. Copilot analyzes: "Update body-parser to fix transitive qs vulnerability"
-5. Engineer understands and implements the fix
+1. Dependabot detects glob vulnerability
+2. May create unclear PR or no PR at all (due to override lock)
+3. Wolf creates draft PR with CVE details + `@github-copilot workspace`
+4. Copilot analyzes dependency tree: "Remove glob override or update rimraf"
+5. Engineer understands the transitive relationship and implements fix
 
-**See example:** https://github.com/playlab-education/playlab/pull/2234
+**Real-world parallel:** This matches the playlab scenario where `@sentry/vite-plugin@3.3.1` → `glob@vulnerable` required updating the Sentry plugin, not glob directly.
 
 ## License
 
