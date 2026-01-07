@@ -19,7 +19,7 @@ graph LR
     B --> C{Has PR?}
     C -->|No| D[Create Draft PR]
     C -->|Yes| E[Skip]
-    D --> F[@github-copilot workspace]
+    D --> F[Tag Copilot Workspace]
     F --> G[Engineer Reviews]
 ```
 
