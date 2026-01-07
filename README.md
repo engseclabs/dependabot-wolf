@@ -4,12 +4,17 @@ Automated GitHub Action that fixes stuck Dependabot security alerts using GitHub
 
 ## What It Does
 
-When Dependabot can't create a PR to fix a security vulnerability (usually due to dependency conflicts), Dependabot Wolf:
+When Dependabot security alerts remain unfixed, Dependabot Wolf automatically creates PR proposals using GitHub Copilot Workspace.
 
-1. Finds all open Dependabot alerts without PRs
-2. Creates a draft PR for each stuck alert
-3. Tags GitHub Copilot Workspace to propose a fix
-4. Engineers review and merge (or close) the Copilot-generated fixes
+**"Stuck" alerts are those without open PRs:**
+- Dependabot couldn't create a PR (dependency conflicts, peer dependency mismatches)
+- Dependabot PR was closed (breaking changes, test failures, rejected by maintainers)
+
+**Dependabot Wolf:**
+1. Finds all open Dependabot alerts without open PRs
+2. Creates a draft PR for each stuck alert with full context
+3. Tags `@github-copilot workspace` to propose a fix
+4. Engineers use Copilot to interactively resolve the issue
 
 ## How It Works
 
@@ -59,10 +64,17 @@ The workflow requires the following permissions (configured via the PAT):
 
 ## Testing
 
-This repo includes intentionally vulnerable dependencies to test the workflow:
-- `lodash@4.17.15` (CVE-2020-8203)
-- `minimist@0.0.8` (CVE-2020-7598)
-- `axios@0.18.0` (CVE-2019-10742)
+This repo demonstrates stuck alerts with dependencies that have breaking changes:
+- `react@16.8.0` - Multiple CVEs, upgrading to 17+ requires code changes
+- `webpack@4.28.0` - Multiple CVEs, upgrading to 5+ is a major breaking change
+- `webpack-dev-server@3.1.0` - CVEs, requires webpack 4+ peer dependency
+
+**To test:**
+1. Dependabot will create PRs for these vulnerabilities
+2. Close the PRs (simulating rejection due to breaking changes)
+3. Run Dependabot Wolf workflow manually
+4. Wolf creates new draft PRs with Copilot Workspace integration
+5. Engineers can use Copilot to propose fixes that handle breaking changes
 
 ## License
 
