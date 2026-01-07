@@ -7,9 +7,10 @@
     "url": "https://github.com/engseclabs/dependabot-wolf.git"
   },
   "dependencies": {
-    "lodash": "4.17.15",
-    "minimist": "0.0.8",
-    "axios": "0.18.0"
+    "react": "16.8.0",
+    "react-dom": "16.8.0",
+    "@testing-library/react": "9.0.0",
+    "webpack": "4.28.0"
   },
   "devDependencies": {},
   "scripts": {
