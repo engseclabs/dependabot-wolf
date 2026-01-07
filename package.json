@@ -1,0 +1,26 @@
+{
+  "name": "dependabot-wolf",
+  "version": "1.0.0",
+  "description": "GitHub Action to fix stuck Dependabot alerts using Copilot Workspace",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/engseclabs/dependabot-wolf.git"
+  },
+  "dependencies": {
+    "lodash": "4.17.15",
+    "minimist": "0.0.8",
+    "axios": "0.18.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [
+    "dependabot",
+    "security",
+    "github-actions",
+    "copilot"
+  ],
+  "author": "EngSec Labs",
+  "license": "MIT"
+}

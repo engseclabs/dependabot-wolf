@@ -1,0 +1,152 @@
+name: Dependabot Wolf
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily
+  workflow_dispatch:     # Manual trigger
+
+jobs:
+  fix-stuck-alerts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      security-events: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find stuck Dependabot alerts
+        id: find-alerts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get all open Dependabot alerts
+            const alerts = await github.rest.dependabot.listAlertsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open'
+            });
+
+            console.log(`Found ${alerts.data.length} open Dependabot alerts`);
+
+            // Filter: no associated PR = stuck
+            const stuck = [];
+            for (const alert of alerts.data) {
+              console.log(`Checking alert ${alert.number}: ${alert.security_advisory.cve_id || alert.security_advisory.ghsa_id}`);
+
+              // Check if Dependabot created a PR for this
+              const packageName = alert.dependency.package.name;
+              const ecosystem = alert.dependency.package.ecosystem;
+
+              // Try to find PRs created by dependabot for this dependency
+              const prs = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'all',
+                per_page: 100
+              });
+
+              // Check if any PR is for this dependency
+              const hasPR = prs.data.some(pr => {
+                return pr.user.login === 'dependabot[bot]' &&
+                       pr.title.includes(packageName);
+              });
+
+              if (!hasPR) {
+                console.log(`  -> Stuck! No PR found for ${packageName}`);
+                stuck.push(alert);
+              } else {
+                console.log(`  -> Has PR, skipping`);
+              }
+            }
+
+            console.log(`Found ${stuck.length} stuck alerts`);
+            return stuck;
+
+      - name: Create Copilot PR for each stuck alert
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const stuck = ${{ steps.find-alerts.outputs.result }};
+
+            console.log(`Processing ${stuck.length} stuck alerts`);
+
+            for (const alert of stuck) {
+              const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
+              const packageName = alert.dependency.package.name;
+
+              // Create branch name
+              const branch = `wolf/fix-${cveId}-${packageName}`.replace(/[^a-zA-Z0-9-]/g, '-');
+
+              console.log(`Creating branch ${branch} for ${cveId}`);
+
+              try {
+                // Get default branch ref
+                const { data: ref } = await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: 'heads/main'
+                });
+
+                // Check if branch already exists
+                try {
+                  await github.rest.git.getRef({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: `heads/${branch}`
+                  });
+                  console.log(`Branch ${branch} already exists, skipping`);
+                  continue;
+                } catch (e) {
+                  // Branch doesn't exist, continue
+                }
+
+                // Create new branch
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/heads/${branch}`,
+                  sha: ref.object.sha
+                });
+
+                // Get vulnerability details
+                const vulnerability = alert.security_advisory.vulnerabilities[0];
+                const patchedVersions = vulnerability?.patched_versions || 'See advisory';
+                const manifestPath = alert.dependency.manifest_path || 'package.json';
+
+                // Create PR (Copilot will populate it)
+                const pr = await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `Fix ${cveId}: Update ${packageName}`,
+                  head: branch,
+                  base: 'main',
+                  draft: true,
+                  body: `## 🤖 Dependabot Wolf - Automated Fix Attempt
+
+**CVE:** ${cveId}
+**Severity:** ${alert.security_advisory.severity}
+**Package:** ${packageName}
+**Current Version:** ${manifestPath} specifies a vulnerable version
+**Patched Versions:** ${patchedVersions}
+**Advisory URL:** ${alert.security_advisory.html_url}
+
+### Problem
+Dependabot could not automatically create a PR to fix this vulnerability, likely due to dependency conflicts.
+
+### Task for Copilot
+Please analyze the dependency tree and propose a fix:
+
+1. Identify why the direct upgrade failed (check transitive dependencies)
+2. Update \`${manifestPath}\` with necessary version changes
+3. If breaking changes are needed, update calling code
+4. Explain your changes
+
+@github-copilot workspace
+                `
+                });
+
+                console.log(`✓ Created PR #${pr.data.number} for ${cveId}`);
+              } catch (error) {
+                console.error(`✗ Failed to create PR for ${cveId}: ${error.message}`);
+              }
+            }
