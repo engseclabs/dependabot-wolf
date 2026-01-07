@@ -152,8 +152,9 @@ jobs:
                     fixApplied = true;
                   }
 
-                  // Regenerate package-lock.json
-                  console.log('Running npm install to update dependencies...');
+                  // Regenerate package-lock.json with fresh dependency resolution
+                  console.log('Deleting package-lock.json and running fresh npm install...');
+                  execSync('rm -f package-lock.json', { stdio: 'inherit' });
                   execSync('npm install', { stdio: 'inherit' });
                   execSync('git add package-lock.json', { stdio: 'inherit' });
                   execSync(`git commit -m "Update package-lock.json with patched ${packageName}"`, { stdio: 'inherit' });
