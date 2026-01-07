@@ -1,26 +1,32 @@
 # Dependabot Wolf 🐺
 
-Automatically creates fix PRs for Dependabot security alerts that Dependabot can't fix itself.
+Automatically fixes transitive dependency vulnerabilities that Dependabot can't handle.
 
 ## The Problem
 
-Dependabot is great at detecting vulnerabilities, but sometimes it can't create a PR to fix them:
+You have a security alert like this:
+```
+your-app
+  └─> parent-package@1.0.0
+        └─> vulnerable-package@1.0.0 ⚠️ CVE-2024-1234
+```
 
-- **Transitive dependencies**: Vulnerability is deep in your dependency tree (e.g., `glob` through `rimraf`)
-- **Complex upgrades**: Fix requires updating parent dependencies
-- **Breaking changes**: Teams close PRs without understanding the security context
+**Dependabot detects it, but can't fix it** because:
+- The vulnerable package isn't in your `package.json`
+- It's a transitive dependency (dependency of a dependency)
+- The fix requires updating the parent package
 
-**Result:** Alerts pile up, vulnerabilities remain unfixed.
+**Result:** Alert sits unfixed. Your team ignores it because the fix isn't obvious.
 
 ## The Solution
 
 Dependabot Wolf automatically:
-1. Finds security alerts without open PRs
+1. Finds transitive dependency alerts without open PRs
 2. Identifies which parent dependency needs updating
-3. Creates a draft PR with the fix + full CVE context
-4. Tags `@github-copilot workspace` for AI-assisted review
+3. Creates a PR that updates the parent → pulls in the patched version
+4. Includes full CVE context so your team understands why
 
-**Your team gets:** A complete PR with context, ready to review and merge.
+**Your team gets:** A complete PR with the fix, ready to review and merge.
 
 ## Quick Start
 
@@ -100,37 +106,37 @@ This pattern matches [playlab PR #2234](https://github.com/playlab-education/pla
 
 ```mermaid
 graph LR
-    A[Daily Scan] --> B{Stuck Alerts?}
-    B -->|Yes| C[Identify Parent Dependency]
-    C --> D[Update to Latest Version]
+    A[Daily Scan] --> B{Transitive Vuln?}
+    B -->|Yes| C[Find Parent Package]
+    C --> D[Update Parent]
     D --> E[Create Draft PR]
-    E --> F[Tag Copilot for Review]
-    B -->|No| G[Done]
+    E --> F[Tag Copilot]
+    B -->|No| G[Skip]
 ```
 
 **Technical details:**
-1. Scans Dependabot alerts via GitHub API
-2. Filters for alerts without open PRs
-3. Analyzes `package-lock.json` to find parent dependencies
-4. Updates parent to latest version (e.g., `rimraf@latest`)
-5. Commits fix and creates draft PR with CVE context
+1. Scans Dependabot alerts for transitive dependencies
+2. Filters for alerts without open PRs (stuck alerts)
+3. Reads `package-lock.json` to identify the parent package
+4. Updates parent to latest version (e.g., `rimraf@5.0.0` → `rimraf@6.1.2`)
+5. Commits fix with patched transitive dependency and creates draft PR
 
 ## FAQ
 
 **Q: Why not just use Dependabot?**
-A: Dependabot can't always figure out complex transitive dependency fixes. Wolf handles these cases.
+A: Dependabot can't figure out transitive dependency fixes. It detects the vulnerability but doesn't know which parent package to update.
 
 **Q: Will Wolf create PRs for everything?**
-A: No, only for alerts that don't have an open Dependabot PR.
+A: No, only for transitive dependency alerts without an open Dependabot PR.
 
 **Q: Is it safe to auto-merge Wolf PRs?**
-A: No! These are draft PRs for review. Always test breaking changes, especially major version bumps.
+A: No! These are draft PRs for review. Major version bumps may have breaking changes.
 
 **Q: Does this work with npm only?**
-A: Currently yes. PRs welcome for other package managers!
+A: Currently yes. PRs welcome for pip, Maven, Go modules, etc.!
 
-**Q: What if Wolf can't fix an alert?**
-A: It will skip it or create a PR explaining what needs manual attention.
+**Q: What if the parent package can't be updated?**
+A: Wolf will either skip the alert or create a PR explaining what needs manual investigation.
 
 ## Contributing
 
@@ -145,4 +151,4 @@ MIT
 
 ---
 
-**Note:** This is an experimental tool. Always review PRs before merging, especially for major version updates.
+**Note:** This is an experimental tool focused on transitive dependency vulnerabilities. Always review PRs before merging, especially for major version updates.
