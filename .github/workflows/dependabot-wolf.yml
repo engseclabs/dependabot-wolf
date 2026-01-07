@@ -159,7 +159,7 @@ jobs:
                   if (parentPackage) {
                     console.log(`Attempting to update parent dependency ${parentPackage} to get patched ${packageName}`);
 
-                    // Remove override if it exists
+                    // Remove override if it exists and write to disk BEFORE npm install
                     let removedOverride = false;
                     if (packageJson.overrides && packageJson.overrides[packageName]) {
                       console.log(`Removing override locking ${packageName} to ${packageJson.overrides[packageName]}`);
@@ -168,6 +168,10 @@ jobs:
                         delete packageJson.overrides;
                       }
                       removedOverride = true;
+
+                      // Write package.json to disk BEFORE running npm install
+                      fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+                      console.log('Wrote package.json without override to disk');
                     }
 
                     // Try to update parent package to latest
