@@ -115,6 +115,18 @@ jobs:
                 const patchedVersions = vulnerability?.patched_versions || 'See advisory';
                 const manifestPath = alert.dependency.manifest_path || 'package.json';
 
+                // Create a placeholder commit so PR can be created
+                const todoContent = `# Fix ${cveId}\n\nPackage: ${packageName}\nSeverity: ${alert.security_advisory.severity}\nPatched versions: ${patchedVersions}\n\n## TODO\n- [ ] Update ${manifestPath}\n- [ ] Test changes\n- [ ] Verify security fix\n`;
+
+                const { data: fileData } = await github.rest.repos.createOrUpdateFileContents({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  path: `.github/wolf-todos/${cveId}.md`,
+                  message: `Wolf: Create task for ${cveId} in ${packageName}`,
+                  content: Buffer.from(todoContent).toString('base64'),
+                  branch: branch
+                });
+
                 // Create PR (Copilot will populate it)
                 const pr = await github.rest.pulls.create({
                   owner: context.repo.owner,
