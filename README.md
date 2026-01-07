@@ -64,17 +64,25 @@ The workflow requires the following permissions (configured via the PAT):
 
 ## Testing
 
-This repo demonstrates stuck alerts with dependencies that have breaking changes:
-- `react@16.8.0` - Multiple CVEs, upgrading to 17+ requires code changes
-- `webpack@4.28.0` - Multiple CVEs, upgrading to 5+ is a major breaking change
-- `webpack-dev-server@3.1.0` - CVEs, requires webpack 4+ peer dependency
+This repo demonstrates a **genuine transitive dependency conflict** that Dependabot cannot resolve:
 
-**To test:**
-1. Dependabot will create PRs for these vulnerabilities
-2. Close the PRs (simulating rejection due to breaking changes)
-3. Run Dependabot Wolf workflow manually
-4. Wolf creates new draft PRs with Copilot Workspace integration
-5. Engineers can use Copilot to propose fixes that handle breaking changes
+### The Scenario
+Multiple packages transitively depend on `body-parser@1.19.0`, which in turn depends on vulnerable `qs@6.5.2`:
+- `express@4.18.0` → `body-parser@1.19.0` → `qs@6.5.2` (vulnerable)
+- `@remix-run/express@2.0.0` → transitive `body-parser` → `qs`
+- `@remix-run/dev@2.0.0` → transitive `body-parser` → `qs`
+
+**Why Dependabot cannot fix this:**
+- `qs` vulnerability requires upgrading to 6.11.0+
+- But `body-parser@1.19.0` locks `qs` at the old version
+- Upgrading requires updating multiple root dependencies simultaneously
+- This is a **diamond dependency problem** Dependabot cannot solve
+
+**When Wolf activates:**
+1. Dependabot detects `qs` vulnerability but CANNOT create a PR
+2. Alert remains open with no PR (genuinely stuck)
+3. Wolf creates a draft PR with `@github-copilot workspace` tag
+4. Engineers use Copilot to analyze and propose coordinated package updates
 
 ## License
 
