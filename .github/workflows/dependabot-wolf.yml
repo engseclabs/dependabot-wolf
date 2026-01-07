@@ -121,28 +121,22 @@ jobs:
                   head: branch,
                   base: 'main',
                   draft: true,
-                  body: `## 🤖 Dependabot Wolf - Automated Fix Attempt
-
-**CVE:** ${cveId}
-**Severity:** ${alert.security_advisory.severity}
-**Package:** ${packageName}
-**Current Version:** ${manifestPath} specifies a vulnerable version
-**Patched Versions:** ${patchedVersions}
-**Advisory URL:** ${alert.security_advisory.html_url}
-
-### Problem
-Dependabot could not automatically create a PR to fix this vulnerability, likely due to dependency conflicts.
-
-### Task for Copilot
-Please analyze the dependency tree and propose a fix:
-
-1. Identify why the direct upgrade failed (check transitive dependencies)
-2. Update \`${manifestPath}\` with necessary version changes
-3. If breaking changes are needed, update calling code
-4. Explain your changes
-
-@github-copilot workspace
-                `
+                  body: `## 🤖 Dependabot Wolf - Automated Fix Attempt\n\n` +
+                        `**CVE:** ${cveId}\n` +
+                        `**Severity:** ${alert.security_advisory.severity}\n` +
+                        `**Package:** ${packageName}\n` +
+                        `**Current Version:** ${manifestPath} specifies a vulnerable version\n` +
+                        `**Patched Versions:** ${patchedVersions}\n` +
+                        `**Advisory URL:** ${alert.security_advisory.html_url}\n\n` +
+                        `### Problem\n` +
+                        `Dependabot could not automatically create a PR to fix this vulnerability, likely due to dependency conflicts.\n\n` +
+                        `### Task for Copilot\n` +
+                        `Please analyze the dependency tree and propose a fix:\n\n` +
+                        `1. Identify why the direct upgrade failed (check transitive dependencies)\n` +
+                        `2. Update \`${manifestPath}\` with necessary version changes\n` +
+                        `3. If breaking changes are needed, update calling code\n` +
+                        `4. Explain your changes\n\n` +
+                        `@github-copilot workspace`
                 });
 
                 console.log(`✓ Created PR #${pr.data.number} for ${cveId}`);
