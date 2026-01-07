@@ -25,19 +25,37 @@ graph LR
 
 ## Installation
 
-1. Enable Dependabot alerts on your repository (Settings → Security → Dependabot)
-2. Copy `.github/workflows/dependabot-wolf.yml` to your repo
-3. Ensure Dependabot has appropriate permissions
-4. The workflow runs daily or manually via `workflow_dispatch`
+1. **Enable Dependabot alerts** on your repository (Settings → Security → Dependabot)
+
+2. **Create a Personal Access Token (PAT)**:
+   - Go to GitHub Settings → Developer settings → Personal access tokens → Fine-grained tokens
+   - Create a token with the following permissions:
+     - Repository access: Select the repository
+     - Permissions:
+       - `Contents`: Read and write
+       - `Pull requests`: Read and write
+       - `Security events`: Read only (for Dependabot alerts)
+   - Copy the token
+
+3. **Add the PAT as a repository secret**:
+   - Go to your repository Settings → Secrets and variables → Actions
+   - Create a new secret named `DEPENDABOT_PAT`
+   - Paste your PAT as the value
+
+4. **Copy the workflow file** `.github/workflows/dependabot-wolf.yml` to your repo
+
+5. The workflow runs daily (via cron) or manually via `workflow_dispatch`
+
+## Why a PAT is Required
+
+GitHub's default `GITHUB_TOKEN` in workflows cannot access Dependabot alerts for security reasons. A Personal Access Token with `security_events` scope is required to read Dependabot alerts via the API.
 
 ## Configuration
 
-The workflow requires the following permissions:
+The workflow requires the following permissions (configured via the PAT):
 - `contents: write` - To create branches
 - `pull-requests: write` - To create PRs
 - `security-events: read` - To read Dependabot alerts
-
-These are configured in the workflow file.
 
 ## Testing
 
