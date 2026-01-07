@@ -7,7 +7,7 @@
     "url": "https://github.com/engseclabs/dependabot-wolf.git"
   },
   "devDependencies": {
-    "rimraf": "5.0.0"
+    "rimraf": "^6.1.2"
   },
   "overrides": {
     "glob": "10.4.5"
