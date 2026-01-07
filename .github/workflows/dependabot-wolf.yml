@@ -38,25 +38,25 @@ jobs:
               const packageName = alert.dependency.package.name;
               const ecosystem = alert.dependency.package.ecosystem;
 
-              // Try to find PRs created by dependabot for this dependency
+              // Try to find OPEN PRs created by dependabot for this dependency
               const prs = await github.rest.pulls.list({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                state: 'all',
+                state: 'open',
                 per_page: 100
               });
 
-              // Check if any PR is for this dependency
-              const hasPR = prs.data.some(pr => {
+              // Check if any OPEN PR is for this dependency
+              const hasOpenPR = prs.data.some(pr => {
                 return pr.user.login === 'dependabot[bot]' &&
                        pr.title.includes(packageName);
               });
 
-              if (!hasPR) {
-                console.log(`  -> Stuck! No PR found for ${packageName}`);
+              if (!hasOpenPR) {
+                console.log(`  -> Stuck! No open PR found for ${packageName}`);
                 stuck.push(alert);
               } else {
-                console.log(`  -> Has PR, skipping`);
+                console.log(`  -> Has open PR, skipping`);
               }
             }
 
