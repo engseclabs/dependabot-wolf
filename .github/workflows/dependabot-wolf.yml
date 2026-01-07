@@ -68,6 +68,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Configure git
+        run: |
+          git config --global user.name "dependabot-wolf[bot]"
+          git config --global user.email "dependabot-wolf[bot]@users.noreply.github.com"
+
       - name: Create fix PR for each stuck alert
         uses: actions/github-script@v7
         with:
