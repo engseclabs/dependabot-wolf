@@ -129,37 +129,87 @@ jobs:
                 if (isTransitive) {
                   console.log(`Attempting transitive dependency fix for ${packageName}`);
 
-                  // Read package.json
+                  // Read package.json and package-lock.json
                   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                  const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
 
-                  // Check if package is locked via overrides
-                  if (packageJson.overrides && packageJson.overrides[packageName]) {
-                    console.log(`Found override locking ${packageName} to ${packageJson.overrides[packageName]}`);
+                  // Find parent package that depends on the vulnerable transitive dependency
+                  let parentPackage = null;
+                  let parentVersion = null;
 
-                    // Remove the override
-                    delete packageJson.overrides[packageName];
+                  // Check all dependencies in package.json
+                  const allDeps = {
+                    ...packageJson.dependencies,
+                    ...packageJson.devDependencies,
+                    ...packageJson.peerDependencies,
+                    ...packageJson.optionalDependencies
+                  };
 
-                    // Remove overrides section if empty
-                    if (Object.keys(packageJson.overrides).length === 0) {
-                      delete packageJson.overrides;
+                  // Look through package-lock to find which direct dependency brings in the vulnerable package
+                  for (const [depName, depVersion] of Object.entries(allDeps)) {
+                    const lockEntry = packageLock.packages?.[`node_modules/${depName}`];
+                    if (lockEntry?.dependencies?.[packageName]) {
+                      console.log(`Found ${depName}@${depVersion} depends on ${packageName}`);
+                      parentPackage = depName;
+                      parentVersion = depVersion;
+                      break;
                     }
-
-                    fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
-                    execSync('git add package.json', { stdio: 'inherit' });
-                    execSync(`git commit -m "Remove ${packageName} override to allow security update"`, { stdio: 'inherit' });
-
-                    fixDescription = `Removed \`overrides.${packageName}\` from package.json to allow npm to resolve the patched version ${patchedVersions}`;
-                    fixApplied = true;
                   }
 
-                  // Regenerate package-lock.json with fresh dependency resolution
-                  console.log('Deleting package-lock.json and running fresh npm install...');
-                  execSync('rm -f package-lock.json', { stdio: 'inherit' });
-                  execSync('npm install', { stdio: 'inherit' });
-                  execSync('git add package-lock.json', { stdio: 'inherit' });
-                  execSync(`git commit -m "Update package-lock.json with patched ${packageName}"`, { stdio: 'inherit' });
+                  if (parentPackage) {
+                    console.log(`Attempting to update parent dependency ${parentPackage} to get patched ${packageName}`);
 
-                  fixDescription += `\n\nRan \`npm install\` to update package-lock.json with patched ${packageName} version.`;
+                    // Remove override if it exists
+                    let removedOverride = false;
+                    if (packageJson.overrides && packageJson.overrides[packageName]) {
+                      console.log(`Removing override locking ${packageName} to ${packageJson.overrides[packageName]}`);
+                      delete packageJson.overrides[packageName];
+                      if (Object.keys(packageJson.overrides).length === 0) {
+                        delete packageJson.overrides;
+                      }
+                      removedOverride = true;
+                    }
+
+                    // Try to update parent package to latest
+                    try {
+                      console.log(`Running: npm install ${parentPackage}@latest`);
+                      execSync(`npm install ${parentPackage}@latest`, { stdio: 'inherit' });
+
+                      // Get the new version
+                      const updatedPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+                      const newParentVersion = updatedPackageJson.dependencies?.[parentPackage] ||
+                                             updatedPackageJson.devDependencies?.[parentPackage];
+
+                      fixDescription = `Updated \`${parentPackage}\` from \`${parentVersion}\` to \`${newParentVersion}\` to resolve transitive \`${packageName}\` vulnerability.`;
+
+                      if (removedOverride) {
+                        fixDescription += `\n\nRemoved \`overrides.${packageName}\` to allow npm to resolve the patched version.`;
+                      }
+
+                      execSync('git add package.json package-lock.json', { stdio: 'inherit' });
+                      execSync(`git commit -m "Update ${parentPackage} to fix ${packageName} vulnerability (${cveId})"`, { stdio: 'inherit' });
+
+                      fixApplied = true;
+                    } catch (updateError) {
+                      console.error(`Failed to update ${parentPackage}: ${updateError.message}`);
+
+                      // Fallback: just remove override and regenerate lock file
+                      if (removedOverride) {
+                        fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+                        execSync('rm -f package-lock.json', { stdio: 'inherit' });
+                        execSync('npm install', { stdio: 'inherit' });
+                        execSync('git add package.json package-lock.json', { stdio: 'inherit' });
+                        execSync(`git commit -m "Remove ${packageName} override and regenerate lock file"`, { stdio: 'inherit' });
+
+                        fixDescription = `Removed \`overrides.${packageName}\` and regenerated package-lock.json. Could not automatically update ${parentPackage}.`;
+                      } else {
+                        fixDescription = `Could not automatically fix transitive dependency. Manual update of ${parentPackage} required.`;
+                      }
+                    }
+                  } else {
+                    console.log(`Could not identify parent dependency for ${packageName}`);
+                    fixDescription = `Could not automatically identify which dependency to update for transitive ${packageName} vulnerability.`;
+                  }
                 } else {
                   console.log(`Attempting direct dependency update for ${packageName}`);
 
