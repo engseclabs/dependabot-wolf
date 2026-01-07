@@ -79,8 +79,6 @@ package.json: rimraf@5.0.0 (devDependency)
   └─> glob@10.4.5 (VULNERABLE - CVE-2025-64756, GHSA-5j98-mcp5-4vw2)
 ```
 
-We have `glob` locked at 10.4.5 via `overrides` to simulate a dependency conflict.
-
 **The Vulnerability:**
 - glob CLI versions 10.2.0 to 10.4.5 have command injection via `-c/--cmd` option
 - Allows arbitrary command execution through malicious filenames
@@ -88,19 +86,17 @@ We have `glob` locked at 10.4.5 via `overrides` to simulate a dependency conflic
 
 **Why this is tricky:**
 - `glob` is a **transitive dependency** (not directly installed)
-- Dependabot detects vulnerability but solution isn't obvious
+- Dependabot detects vulnerability but can't create PR
 - Fix requires updating **parent dependency** (rimraf 5.0.0 → 6.1.2)
 - rimraf@6.x depends on glob@^13.0.0 (patched version)
 - Understanding transitive relationship is key
 
 **When Wolf activates:**
-1. Dependabot detects glob vulnerability (no open PR due to override lock)
-2. Wolf creates draft PR that:
-   - Updates rimraf from 5.0.0 to 6.1.2 (which uses glob@^13.0.0)
-   - Removes glob override from package.json
-   - Regenerates package-lock.json with patched glob
-3. PR includes CVE details + `@github-copilot workspace` for AI-assisted review
-4. Engineer reviews and merges the fix
+1. Dependabot detects glob vulnerability but can't create PR
+2. Wolf creates draft PR that updates rimraf from 5.0.0 to 6.1.2
+3. rimraf@6.1.2 brings in glob@13.0.0 (patched version)
+4. PR includes CVE details + `@github-copilot workspace` for AI-assisted review
+5. Engineer reviews and merges the fix
 
 **Real-world parallel:** This matches the [playlab PR #2234](https://github.com/playlab-education/playlab/pull/2234) where `@sentry/vite-plugin@3.3.1` → `glob@vulnerable` required updating `@sentry/vite-plugin` to `4.6.1`, not glob directly.
 
@@ -109,10 +105,7 @@ We have `glob` locked at 10.4.5 via `overrides` to simulate a dependency conflic
   "devDependencies": {
 -   "rimraf": "5.0.0"
 +   "rimraf": "^6.1.2"
-  },
-- "overrides": {
--   "glob": "10.4.5"
-- }
+  }
 ```
 Result: rimraf@6.1.2 → glob@13.0.0 (patched, no vulnerability)
 
