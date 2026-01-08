@@ -1,24 +1,31 @@
 # Dependabot Wolf 🐺
 
-Automatically fixes transitive dependency vulnerabilities that Dependabot can't handle.
+Fixes security alerts when Dependabot says **"cannot update to a non-vulnerable version."**
 
 ## The Problem
 
-Dependabot detects a vulnerability deep in your dependency tree but says **"cannot create a PR"** because:
-- The vulnerable package isn't in your `package.json` (it's transitive)
-- Fixing it requires a major version bump of the parent dependency
-- That major version may have breaking changes
+Dependabot detects a vulnerability but says:
 
-**Result:** Alert sits there. Your team doesn't know which package to update or how to handle breaking changes.
+> **"Dependabot cannot update DEPENDENCY to a non-vulnerable version"**
+>
+> Cannot create a pull request to update the vulnerable dependency to a secure version without breaking other dependencies in the dependency graph.
+
+This happens when:
+- Your dependency graph is complex (common in npm/RubyGems)
+- Fixing the vulnerability requires updating multiple dependencies
+- Those updates include major/breaking version changes
+- Dependabot can't figure out how to upgrade without breaking everything
+
+**Result:** Alert sits there. You don't know what to update or how to handle breaking changes.
 
 ## The Solution
 
-Wolf + Copilot fix it automatically:
-1. **Wolf** identifies the parent dependency and updates it (even major versions)
-2. **Copilot** gets tagged to handle any breaking changes (update function calls, APIs, etc.)
-3. You get a draft PR with the complete fix—one-shot, ready to review
+Wolf + Copilot fix it in one shot:
+1. **Wolf** analyzes the dependency graph and updates what's needed (even major versions)
+2. **Copilot** handles breaking changes (updates function calls, APIs, imports, etc.)
+3. You get a complete, working PR ready to review
 
-No more "cannot create a PR" alerts blocking your security fixes.
+No more stuck alerts. No more manual dependency archaeology.
 
 ## Quick Start
 
@@ -73,13 +80,13 @@ Copilot analyzes the changes and updates your code (function calls, API usage, e
 ## FAQ
 
 **Q: Will Copilot actually fix breaking changes in my code?**
-A: Yes! Wolf tags `@github-copilot workspace` which analyzes the dependency upgrade and updates your function calls, API usage, and any breaking changes. You get a complete, working fix in one PR.
+A: Yes! Wolf tags `@github-copilot workspace` which analyzes the dependency upgrades and updates your function calls, API usage, and any breaking changes. You get a complete, working fix in one PR.
 
 **Q: Why not just use Dependabot?**
-A: Dependabot says "cannot create a PR" for transitive dependencies that require major version upgrades. Wolf + Copilot handle these automatically.
+A: Dependabot says **"cannot update to a non-vulnerable version"** when the dependency graph is complex and fixing requires multiple major version upgrades. Wolf + Copilot handle these automatically.
 
 **Q: Will Wolf create PRs for everything?**
-A: No, only transitive dependency alerts where Dependabot couldn't create a PR.
+A: No, only for alerts where Dependabot explicitly couldn't create a PR.
 
 **Q: Is it safe to auto-merge Wolf PRs?**
 A: No, always review! Even with Copilot's help, test the changes before merging.
