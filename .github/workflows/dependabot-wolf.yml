@@ -18,7 +18,6 @@ jobs:
         id: find-alerts
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DEPENDABOT_PAT }}
           script: |
             // Get all open Dependabot alerts
             const alerts = await github.rest.dependabot.listAlertsForRepo({
@@ -72,7 +71,6 @@ jobs:
       - name: Hand off to Copilot
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.DEPENDABOT_PAT }}
           script: |
             const stuckAlerts = ${{ steps.find-alerts.outputs.result }};
 

@@ -24,29 +24,7 @@ That's it. Wolf doesn't try to fix anything - just hands the problem to Copilot 
 
 ## Quick Start
 
-### 1. Create a Personal Access Token (PAT)
-
-GitHub's default `GITHUB_TOKEN` can't read Dependabot alerts, so you need a PAT:
-
-1. Go to **GitHub Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
-2. Click **Generate new token**
-3. Configure:
-   - **Repository access**: Select your repository
-   - **Permissions**:
-     - Contents: **Read and write**
-     - Pull requests: **Read and write**
-     - Security events: **Read-only**
-4. Generate and copy the token
-
-### 2. Add PAT as Repository Secret
-
-1. Go to your repo's **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Name: `DEPENDABOT_PAT`
-4. Value: Paste your token
-5. Click **Add secret**
-
-### 3. Add Workflow File
+### 1. Add Workflow File
 
 Copy [`.github/workflows/dependabot-wolf.yml`](.github/workflows/dependabot-wolf.yml) to your repository.
 
@@ -54,7 +32,7 @@ The workflow runs:
 - **Daily** at midnight (via cron)
 - **Manually** via the Actions tab
 
-### 4. Enable Dependabot Alerts
+### 2. Enable Dependabot Alerts
 
 If not already enabled:
 1. Go to **Settings** → **Code security and analysis**
