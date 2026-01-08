@@ -234,16 +234,19 @@ jobs:
                         `**Advisory:** ${alert.security_advisory.html_url}\n\n` +
                         `### What Changed\n\n` +
                         `${fixDescription}\n\n` +
-                        `### Why Wolf Created This PR\n\n` +
-                        `This vulnerability is in a **transitive dependency** (not directly in your \`package.json\`). ` +
-                        `Dependabot raised an alert but explicitly said it "cannot create a PR" because the fix requires ` +
-                        `updating a parent dependency—likely a major/breaking version upgrade. ` +
-                        `Wolf identified the parent package and created this fix for you to review.\n\n` +
-                        `### Testing Required\n\n` +
-                        `- [ ] Run your test suite to ensure no breaking changes\n` +
-                        `- [ ] Verify the vulnerability is resolved with \`npm audit\`\n` +
-                        `- [ ] Review dependency tree with \`npm ls ${packageName}\`\n\n` +
-                        `@github-copilot workspace Please review this fix and suggest any additional changes needed.`
+                        `### Why This PR Exists\n\n` +
+                        `Dependabot detected this vulnerability but said **"cannot create a PR"** because fixing it requires ` +
+                        `a major version upgrade of the parent dependency (likely with breaking changes).\n\n` +
+                        `Wolf automated the dependency update. Now Copilot can handle the rest.\n\n` +
+                        `### For Copilot Workspace\n\n` +
+                        `@github-copilot workspace\n\n` +
+                        `This PR updates dependencies to fix a security vulnerability. The update may include breaking changes.\n\n` +
+                        `**Please:**\n` +
+                        `1. Analyze what changed in the updated dependencies (check CHANGELOGs, release notes)\n` +
+                        `2. Find any code in this repo that uses the updated packages\n` +
+                        `3. Update function calls, API usage, imports, or configurations to work with the new versions\n` +
+                        `4. Explain what you changed and why\n\n` +
+                        `Goal: Make this a complete, working fix that passes tests.`
                 });
 
                 console.log(`✓ Created PR #${pr.data.number} for ${cveId}`);

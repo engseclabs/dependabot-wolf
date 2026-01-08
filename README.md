@@ -4,32 +4,21 @@ Automatically fixes transitive dependency vulnerabilities that Dependabot can't 
 
 ## The Problem
 
-You have a security alert like this:
-```
-your-app
-  └─> parent-package@1.0.0
-        └─> vulnerable-package@1.0.0 ⚠️ CVE-2024-1234
-```
+Dependabot detects a vulnerability deep in your dependency tree but says **"cannot create a PR"** because:
+- The vulnerable package isn't in your `package.json` (it's transitive)
+- Fixing it requires a major version bump of the parent dependency
+- That major version may have breaking changes
 
-**Dependabot raises the alert but explicitly says it cannot create a PR** because:
-- The vulnerable package isn't directly in your `package.json`
-- Fixing it requires updating the parent dependency
-- That update is either:
-  - Outside your allowed version range, or
-  - A major/breaking version upgrade, or
-  - Ambiguous (multiple parents, conflicting constraints)
-
-**Result:** Alert shows "Dependabot cannot update to a non-vulnerable version." Your team doesn't know which parent to update.
+**Result:** Alert sits there. Your team doesn't know which package to update or how to handle breaking changes.
 
 ## The Solution
 
-When Dependabot says "cannot create a PR," Wolf steps in:
-1. Scans for transitive dependency alerts without open PRs
-2. Analyzes `package-lock.json` to find the parent dependency
-3. Updates the parent to latest version (even if major/breaking)
-4. Creates a draft PR with the fix + full CVE context
+Wolf + Copilot fix it automatically:
+1. **Wolf** identifies the parent dependency and updates it (even major versions)
+2. **Copilot** gets tagged to handle any breaking changes (update function calls, APIs, etc.)
+3. You get a draft PR with the complete fix—one-shot, ready to review
 
-**Your team gets:** A concrete fix to review instead of a vague alert. You can see exactly what needs updating and why.
+No more "cannot create a PR" alerts blocking your security fixes.
 
 ## Quick Start
 
@@ -71,75 +60,32 @@ If not already enabled:
 
 Done! Wolf will start monitoring your alerts.
 
-## Example
-
-This repo includes a real vulnerability to demonstrate how Wolf works.
-
-**The scenario:**
-```
-rimraf@5.0.0
-  └─> glob@10.4.5 (VULNERABLE - CVE-2025-64756)
-```
-
-**The problem:**
-- `glob` has a command injection vulnerability
-- It's a transitive dependency (not directly in `package.json`)
-- Dependabot detects it but can't create a PR
-
-**Wolf's fix:**
-```diff
-  "devDependencies": {
--   "rimraf": "5.0.0"
-+   "rimraf": "^6.1.2"
-  }
-```
-
-**Result:** rimraf@6.1.2 brings in glob@13.0.0 (patched) ✅
-
-See [PR #31](https://github.com/engseclabs/dependabot-wolf/pull/31) for the actual fix Wolf created.
-
-## Real-World Example
-
-This pattern matches [playlab PR #2234](https://github.com/playlab-education/playlab/pull/2234):
-- Vulnerability: `glob` via `@sentry/vite-plugin`
-- Fix: Update `@sentry/vite-plugin` from 3.3.1 to 4.6.1
-- Dependabot couldn't figure this out automatically
-
 ## How It Works
 
-```mermaid
-graph LR
-    A[Daily Scan] --> B{Transitive Vuln?}
-    B -->|Yes| C[Find Parent Package]
-    C --> D[Update Parent]
-    D --> E[Create Draft PR]
-    E --> F[Tag Copilot]
-    B -->|No| G[Skip]
-```
+1. Scans for transitive dependency alerts without open PRs
+2. Identifies the parent package causing the issue
+3. Updates parent to latest version (even major/breaking versions)
+4. Tags `@github-copilot workspace` to handle breaking changes
+5. Creates draft PR with complete fix
 
-**Technical details:**
-1. Scans Dependabot alerts for transitive dependencies
-2. Filters for alerts without open PRs (stuck alerts)
-3. Reads `package-lock.json` to identify the parent package
-4. Updates parent to latest version (e.g., `rimraf@5.0.0` → `rimraf@6.1.2`)
-5. Commits fix with patched transitive dependency and creates draft PR
+Copilot analyzes the changes and updates your code (function calls, API usage, etc.) to work with the new version.
 
 ## FAQ
 
+**Q: Will Copilot actually fix breaking changes in my code?**
+A: Yes! Wolf tags `@github-copilot workspace` which analyzes the dependency upgrade and updates your function calls, API usage, and any breaking changes. You get a complete, working fix in one PR.
+
 **Q: Why not just use Dependabot?**
-A: Dependabot detects transitive vulnerabilities but explicitly says it "cannot create a PR" when the fix requires updating a parent dependency outside the allowed range, a major upgrade, or has ambiguous constraints.
+A: Dependabot says "cannot create a PR" for transitive dependencies that require major version upgrades. Wolf + Copilot handle these automatically.
 
 **Q: Will Wolf create PRs for everything?**
-A: No, only for transitive dependency alerts where Dependabot raised an alert but couldn't create a PR.
+A: No, only transitive dependency alerts where Dependabot couldn't create a PR.
 
 **Q: Is it safe to auto-merge Wolf PRs?**
-A: No! These are draft PRs for review. Major version bumps may have breaking changes.
+A: No, always review! Even with Copilot's help, test the changes before merging.
 
 **Q: Does this work with npm only?**
-A: Currently yes. PRs welcome for pip, Maven, Go modules, etc.!
-
-**Q: What if the parent package can't be updated?**
-A: Wolf will either skip the alert or create a PR explaining what needs manual investigation.
+A: Currently yes. PRs welcome for other package managers!
 
 ## Contributing
 
