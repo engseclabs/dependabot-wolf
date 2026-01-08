@@ -73,6 +73,27 @@ Runs daily (or on demand):
 
 Wolf just creates the PR. Copilot does the work.
 
+## What Copilot Sees
+
+Each PR includes this prompt for Copilot:
+
+```
+@github-copilot workspace
+
+Fix this security vulnerability. Dependabot couldn't figure it out -
+conflicting dependencies, complex dependency graph, whatever.
+
+Your job:
+1. Figure out what needs to be updated
+2. Update the dependencies (package.json, lockfiles, whatever)
+3. Fix any breaking changes in the code
+4. Make it work
+
+That's it. Fix it.
+```
+
+Plus all the vulnerability details (CVE, severity, patched version, advisory link).
+
 ## FAQ
 
 **Q: Does Wolf actually fix the vulnerability?**
@@ -85,19 +106,8 @@ A: Sometimes. Copilot is pretty good at dependency upgrades and handling breakin
 A: No. Always review. These PRs involve dependency updates and potential breaking changes.
 
 **Q: Does this work with non-npm projects?**
-A: Currently no - only npm. PRs welcome for other package managers!
-
-## Contributing
-
-PRs welcome for:
-- Other package managers (pip, Maven, Gradle, Go, etc.)
-- Better Copilot prompts
-- Improvements to the workflow
+A: Should work for any package manager (pip, Maven, Gradle, Go, etc.). Only tested with npm so far.
 
 ## License
 
 MIT
-
----
-
-**Note:** Wolf doesn't fix anything - it just shows up when Dependabot is stuck and hands the problem to Copilot. Always review and test before merging.
