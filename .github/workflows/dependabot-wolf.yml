@@ -8,8 +8,7 @@ jobs:
   fix-stuck-alerts:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      issues: write
       security-events: read
     steps:
       - uses: actions/checkout@v4
@@ -83,37 +82,23 @@ jobs:
               console.log(`Processing ${packageName} (${cveId})`);
 
               try {
-                const branchName = `wolf/${cveId}`;
+                // Check if issue already exists for this CVE
+                const existingIssues = await github.rest.issues.listForRepo({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  state: 'open',
+                  labels: 'dependabot-wolf',
+                  per_page: 100
+                });
 
-                // Check if branch already exists
-                try {
-                  await github.rest.git.getRef({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    ref: `heads/${branchName}`
-                  });
-                  console.log(`Branch ${branchName} already exists, skipping`);
+                const issueExists = existingIssues.data.some(issue =>
+                  issue.title.includes(cveId)
+                );
+
+                if (issueExists) {
+                  console.log(`Issue already exists for ${cveId}, skipping`);
                   continue;
-                } catch (e) {
-                  // Branch doesn't exist, continue
                 }
-
-                // Get main branch ref
-                const { data: mainRef } = await github.rest.git.getRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: 'heads/main'
-                });
-
-                // Create new branch pointing to main
-                await github.rest.git.createRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: `refs/heads/${branchName}`,
-                  sha: mainRef.object.sha
-                });
-
-                console.log(`Created branch ${branchName}`);
 
                 // Get vulnerability details
                 const vulnerability = alert.security_advisory.vulnerabilities[0];
@@ -121,19 +106,17 @@ jobs:
                 const vulnerableVersionRange = vulnerability?.vulnerable_version_range || 'Unknown';
 
                 // Get conflicting dependencies info if available
-                let conflictingDeps = '';
+                let manifestInfo = '';
                 if (alert.dependency.manifest_path) {
-                  conflictingDeps = `\n**Manifest:** \`${alert.dependency.manifest_path}\``;
+                  manifestInfo = `\n**Manifest:** \`${alert.dependency.manifest_path}\``;
                 }
 
-                // Create PR
-                const pr = await github.rest.pulls.create({
+                // Create issue
+                const issue = await github.rest.issues.create({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  title: `🐺 Fix ${cveId}: ${packageName}`,
-                  head: `wolf/${cveId}`,
-                  base: 'main',
-                  draft: true,
+                  title: `🐺 ${cveId}: Fix ${packageName} vulnerability`,
+                  labels: ['dependabot-wolf', 'security'],
                   body: `## 🐺 Dependabot Wolf\n\n` +
                         `Dependabot got stuck. Wolf called Copilot.\n\n` +
                         `---\n\n` +
@@ -142,7 +125,7 @@ jobs:
                         `**Severity:** ${alert.security_advisory.severity}\n` +
                         `**Vulnerable Range:** ${vulnerableVersionRange}\n` +
                         `**Patched Version:** ${patchedVersion}\n` +
-                        `**Advisory:** ${alert.security_advisory.html_url}${conflictingDeps}\n\n` +
+                        `**Advisory:** ${alert.security_advisory.html_url}${manifestInfo}\n\n` +
                         `### The Problem\n\n` +
                         `Dependabot said:\n` +
                         `> **"Dependabot cannot update ${packageName} to a non-vulnerable version"**\n\n` +
@@ -157,8 +140,8 @@ jobs:
                         `That's it. Fix it.`
                 });
 
-                console.log(`✓ Created PR #${pr.data.number} for ${cveId}`);
+                console.log(`✓ Created issue #${issue.data.number} for ${cveId}`);
               } catch (error) {
-                console.error(`✗ Failed to create PR for ${cveId}: ${error.message}`);
+                console.error(`✗ Failed to create issue for ${cveId}: ${error.message}`);
               }
             }

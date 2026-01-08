@@ -17,10 +17,11 @@ This happens with complex dependency graphs - fixing the vulnerability requires 
 Wolf handles it:
 
 1. **Finds** the stuck alerts (no Dependabot PR exists)
-2. **Creates** a PR with the vulnerability details
+2. **Creates** an issue with the vulnerability details
 3. **Calls** `@github-copilot workspace` to fix it
+4. **Copilot** creates a PR with the fix
 
-That's it. Wolf doesn't try to fix anything - just hands the problem to Copilot and gets out of the way.
+That's it. Wolf doesn't try to fix anything - just creates an issue and hands it to Copilot.
 
 ## Quick Start
 
@@ -45,15 +46,15 @@ Done! Wolf will start monitoring for stuck alerts.
 Runs daily (or on demand):
 
 1. Checks for Dependabot alerts without PRs
-2. Creates a branch + draft PR for each stuck alert
+2. Creates an issue for each stuck alert
 3. Tags `@github-copilot workspace` with the vulnerability details
-4. Copilot figures out what to update and fixes any breaking changes
+4. Copilot responds to the issue and creates a PR with the fix
 
-Wolf just creates the PR. Copilot does the work.
+Wolf just creates the issue. Copilot does everything else.
 
 ## What Copilot Sees
 
-Each PR includes this prompt for Copilot:
+Each issue includes this prompt for Copilot:
 
 ```
 @github-copilot workspace
@@ -75,13 +76,13 @@ Plus all the vulnerability details (CVE, severity, patched version, advisory lin
 ## FAQ
 
 **Q: Does Wolf actually fix the vulnerability?**
-A: No. Wolf just creates a PR and hands it to Copilot. Copilot figures out what needs updating and fixes the code.
+A: No. Wolf just creates an issue and tags Copilot. Copilot creates the PR with the fix.
 
 **Q: Will Copilot actually fix it?**
 A: Sometimes. Copilot is pretty good at dependency upgrades and handling breaking changes. But always review and test.
 
 **Q: Is it safe to auto-merge?**
-A: No. Always review. These PRs involve dependency updates and potential breaking changes.
+A: No. Always review. Copilot's PRs involve dependency updates and potential breaking changes.
 
 **Q: Does this work with non-npm projects?**
 A: Should work for any package manager (pip, Maven, Gradle, Go, etc.). Only tested with npm so far.
