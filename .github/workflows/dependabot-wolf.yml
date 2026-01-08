@@ -225,29 +225,27 @@ jobs:
                   head: branch,
                   base: 'main',
                   draft: true,
-                  body: `## 🐺 Dependabot Wolf - Security Fix\n\n` +
+                  body: `## 🐺 Dependabot Wolf - Experimental Fix\n\n` +
                         `**CVE:** ${cveId}\n` +
                         `**Severity:** ${alert.security_advisory.severity}\n` +
-                        `**Vulnerable Package:** ${packageName}${isTransitive ? ' (transitive dependency)' : ''}\n` +
+                        `**Vulnerable Package:** ${packageName}${isTransitive ? ' (transitive)' : ''}\n` +
                         `**Patched Version:** ${patchedVersions}\n` +
                         `**Advisory:** ${alert.security_advisory.html_url}\n\n` +
+                        `### What Happened\n\n` +
+                        `Dependabot said:\n` +
+                        `> **"Dependabot cannot update ${packageName} to a non-vulnerable version"**\n\n` +
+                        `Wolf tried a simple approach: just update the dependencies and see if Copilot can fix it.\n\n` +
                         `### What Changed\n\n` +
                         `${fixDescription}\n\n` +
-                        `### Why This PR Exists\n\n` +
-                        `Dependabot detected this vulnerability but said:\n` +
-                        `> **"Dependabot cannot update ${packageName} to a non-vulnerable version"**\n\n` +
-                        `This happens when the dependency graph is complex and fixing the vulnerability ` +
-                        `requires updating multiple dependencies with major/breaking version changes.\n\n` +
-                        `Wolf automated the dependency updates. Now Copilot can handle any breaking changes.\n\n` +
-                        `### For Copilot Workspace\n\n` +
+                        `---\n\n` +
                         `@github-copilot workspace\n\n` +
                         `This PR updates dependencies to fix a security vulnerability. The updates may include breaking changes.\n\n` +
-                        `**Please:**\n` +
-                        `1. Analyze what changed in the updated dependencies (check CHANGELOGs, release notes)\n` +
-                        `2. Find any code in this repo that uses the updated packages\n` +
-                        `3. Update function calls, API usage, imports, or configurations to work with the new versions\n` +
-                        `4. Explain what you changed and why\n\n` +
-                        `Goal: Make this a complete, working fix that passes tests.`
+                        `**Please try to make this work:**\n` +
+                        `1. Check what changed in the updated dependencies (CHANGELOGs, release notes)\n` +
+                        `2. Find code in this repo that uses the updated packages\n` +
+                        `3. Update function calls, API usage, imports, configurations to work with new versions\n` +
+                        `4. Explain what you changed\n\n` +
+                        `Let's see if you can do better than Dependabot's native resolution!`
                 });
 
                 console.log(`✓ Created PR #${pr.data.number} for ${cveId}`);

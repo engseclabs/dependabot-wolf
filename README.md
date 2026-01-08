@@ -1,6 +1,6 @@
 # Dependabot Wolf 🐺
 
-Fixes security alerts when Dependabot says **"cannot update to a non-vulnerable version."**
+**Experiment:** Can Copilot do a better job than Dependabot at fixing complex dependency vulnerabilities?
 
 ## The Problem
 
@@ -10,22 +10,17 @@ Dependabot detects a vulnerability but says:
 >
 > Cannot create a pull request to update the vulnerable dependency to a secure version without breaking other dependencies in the dependency graph.
 
-This happens when:
-- Your dependency graph is complex (common in npm/RubyGems)
-- Fixing the vulnerability requires updating multiple dependencies
-- Those updates include major/breaking version changes
-- Dependabot can't figure out how to upgrade without breaking everything
+This happens when fixing requires updating multiple dependencies with major/breaking version changes.
 
-**Result:** Alert sits there. You don't know what to update or how to handle breaking changes.
+## The Experiment
 
-## The Solution
+When Dependabot fails, **Wolf tries a simple approach:**
 
-Wolf + Copilot fix it in one shot:
-1. **Wolf** analyzes the dependency graph and updates what's needed (even major versions)
-2. **Copilot** handles breaking changes (updates function calls, APIs, imports, etc.)
-3. You get a complete, working PR ready to review
+1. **Update the dependencies** (ignore Dependabot's constraints, just update what's needed)
+2. **Ask Copilot to fix it** (tag `@github-copilot workspace` to handle breaking changes)
+3. **See if it works** (maybe Copilot can resolve what Dependabot couldn't)
 
-No more stuck alerts. No more manual dependency archaeology.
+That's it. Let Copilot take a crack at the problem when Dependabot's native resolution fails.
 
 ## Quick Start
 
@@ -69,27 +64,23 @@ Done! Wolf will start monitoring your alerts.
 
 ## How It Works
 
-1. Scans for transitive dependency alerts without open PRs
-2. Identifies the parent package causing the issue
-3. Updates parent to latest version (even major/breaking versions)
-4. Tags `@github-copilot workspace` to handle breaking changes
-5. Creates draft PR with complete fix
+1. Finds alerts where Dependabot couldn't create a PR
+2. Updates the dependencies (simple approach: update to latest)
+3. Tags `@github-copilot workspace` with instructions to fix breaking changes
+4. Creates draft PR
 
-Copilot analyzes the changes and updates your code (function calls, API usage, etc.) to work with the new version.
+Then you see if Copilot did better than Dependabot's native resolution.
 
 ## FAQ
 
-**Q: Will Copilot actually fix breaking changes in my code?**
-A: Yes! Wolf tags `@github-copilot workspace` which analyzes the dependency upgrades and updates your function calls, API usage, and any breaking changes. You get a complete, working fix in one PR.
+**Q: Is this better than Dependabot?**
+A: Maybe! That's the experiment. Dependabot's native resolution is conservative. Sometimes just updating and letting Copilot fix breaking changes works when Dependabot gives up.
 
-**Q: Why not just use Dependabot?**
-A: Dependabot says **"cannot update to a non-vulnerable version"** when the dependency graph is complex and fixing requires multiple major version upgrades. Wolf + Copilot handle these automatically.
+**Q: Will Copilot actually fix my code?**
+A: Sometimes. Copilot gets detailed instructions to analyze CHANGELOGs, find breaking changes, and update your code. Results vary.
 
-**Q: Will Wolf create PRs for everything?**
-A: No, only for alerts where Dependabot explicitly couldn't create a PR.
-
-**Q: Is it safe to auto-merge Wolf PRs?**
-A: No, always review! Even with Copilot's help, test the changes before merging.
+**Q: Is it safe to auto-merge?**
+A: No! This is experimental. Always review and test before merging.
 
 **Q: Does this work with npm only?**
 A: Currently yes. PRs welcome for other package managers!
@@ -98,8 +89,8 @@ A: Currently yes. PRs welcome for other package managers!
 
 PRs welcome! Especially for:
 - Support for other package managers (pip, Maven, Go modules, etc.)
-- Better heuristics for identifying parent dependencies
-- Improved PR descriptions
+- Better prompts for Copilot
+- Smarter dependency update strategies
 
 ## License
 
@@ -107,4 +98,4 @@ MIT
 
 ---
 
-**Note:** This is an experimental tool focused on transitive dependency vulnerabilities. Always review PRs before merging, especially for major version updates.
+**Note:** This is an experiment to see if Copilot can do better than Dependabot's native dependency resolution. Always review and test PRs before merging.
