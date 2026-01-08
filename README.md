@@ -1,26 +1,26 @@
 # Dependabot Wolf 🐺
 
-**Experiment:** Can Copilot do a better job than Dependabot at fixing complex dependency vulnerabilities?
+When Dependabot gets stuck, Wolf shows up.
 
 ## The Problem
 
 Dependabot detects a vulnerability but says:
 
 > **"Dependabot cannot update DEPENDENCY to a non-vulnerable version"**
->
-> Cannot create a pull request to update the vulnerable dependency to a secure version without breaking other dependencies in the dependency graph.
 
-This happens when fixing requires updating multiple dependencies with major/breaking version changes.
+This happens with complex dependency graphs - fixing the vulnerability requires updating multiple dependencies with breaking changes, and Dependabot can't figure it out.
 
-## The Experiment
+**Result:** Alert sits there. Nobody knows what to do.
 
-When Dependabot fails, **Wolf tries a simple approach:**
+## What Wolf Does
 
-1. **Update the dependencies** (ignore Dependabot's constraints, just update what's needed)
-2. **Ask Copilot to fix it** (tag `@github-copilot workspace` to handle breaking changes)
-3. **See if it works** (maybe Copilot can resolve what Dependabot couldn't)
+Wolf handles it:
 
-That's it. Let Copilot take a crack at the problem when Dependabot's native resolution fails.
+1. **Finds** the stuck alerts (no Dependabot PR exists)
+2. **Creates** a PR with the vulnerability details
+3. **Calls** `@github-copilot workspace` to fix it
+
+That's it. Wolf doesn't try to fix anything - just hands the problem to Copilot and gets out of the way.
 
 ## Quick Start
 
@@ -60,37 +60,39 @@ If not already enabled:
 1. Go to **Settings** → **Code security and analysis**
 2. Enable **Dependabot alerts**
 
-Done! Wolf will start monitoring your alerts.
+Done! Wolf will start monitoring for stuck alerts.
 
 ## How It Works
 
-1. Finds alerts where Dependabot couldn't create a PR
-2. Updates the dependencies (simple approach: update to latest)
-3. Tags `@github-copilot workspace` with instructions to fix breaking changes
-4. Creates draft PR
+Runs daily (or on demand):
 
-Then you see if Copilot did better than Dependabot's native resolution.
+1. Checks for Dependabot alerts without PRs
+2. Creates a branch + draft PR for each stuck alert
+3. Tags `@github-copilot workspace` with the vulnerability details
+4. Copilot figures out what to update and fixes any breaking changes
+
+Wolf just creates the PR. Copilot does the work.
 
 ## FAQ
 
-**Q: Is this better than Dependabot?**
-A: Maybe! That's the experiment. Dependabot's native resolution is conservative. Sometimes just updating and letting Copilot fix breaking changes works when Dependabot gives up.
+**Q: Does Wolf actually fix the vulnerability?**
+A: No. Wolf just creates a PR and hands it to Copilot. Copilot figures out what needs updating and fixes the code.
 
-**Q: Will Copilot actually fix my code?**
-A: Sometimes. Copilot gets detailed instructions to analyze CHANGELOGs, find breaking changes, and update your code. Results vary.
+**Q: Will Copilot actually fix it?**
+A: Sometimes. Copilot is pretty good at dependency upgrades and handling breaking changes. But always review and test.
 
 **Q: Is it safe to auto-merge?**
-A: No! This is experimental. Always review and test before merging.
+A: No. Always review. These PRs involve dependency updates and potential breaking changes.
 
-**Q: Does this work with npm only?**
-A: Currently yes. PRs welcome for other package managers!
+**Q: Does this work with non-npm projects?**
+A: Currently no - only npm. PRs welcome for other package managers!
 
 ## Contributing
 
-PRs welcome! Especially for:
-- Support for other package managers (pip, Maven, Go modules, etc.)
-- Better prompts for Copilot
-- Smarter dependency update strategies
+PRs welcome for:
+- Other package managers (pip, Maven, Gradle, Go, etc.)
+- Better Copilot prompts
+- Improvements to the workflow
 
 ## License
 
@@ -98,4 +100,4 @@ MIT
 
 ---
 
-**Note:** This is an experiment to see if Copilot can do better than Dependabot's native dependency resolution. Always review and test PRs before merging.
+**Note:** Wolf doesn't fix anything - it just shows up when Dependabot is stuck and hands the problem to Copilot. Always review and test before merging.

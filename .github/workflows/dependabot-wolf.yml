@@ -69,196 +69,98 @@ jobs:
             console.log(`Found ${stuckAlerts.length} alerts where Dependabot cannot create PRs`);
             return stuckAlerts;
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Configure git
-        run: |
-          git config --global user.name "dependabot-wolf[bot]"
-          git config --global user.email "dependabot-wolf[bot]@users.noreply.github.com"
-
-      - name: Fix stuck dependency alerts
+      - name: Hand off to Copilot
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DEPENDABOT_PAT }}
           script: |
             const stuckAlerts = ${{ steps.find-alerts.outputs.result }};
-            const fs = require('fs');
-            const { execSync } = require('child_process');
 
-            console.log(`Processing ${stuckAlerts.length} stuck dependency alerts`);
+            console.log(`Handing ${stuckAlerts.length} stuck alerts to Copilot`);
 
             for (const alert of stuckAlerts) {
               const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
               const packageName = alert.dependency.package.name;
-              const isTransitive = alert.dependency.relationship === 'transitive';
 
-              // Create branch name
-              const branch = `wolf/fix-${cveId}-${packageName}`.replace(/[^a-zA-Z0-9-]/g, '-');
-
-              console.log(`Creating branch ${branch} for ${packageName} (${cveId}) - ${isTransitive ? 'transitive' : 'direct'}`);
+              console.log(`Processing ${packageName} (${cveId})`);
 
               try {
-                // Get default branch ref
-                const { data: ref } = await github.rest.git.getRef({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  ref: 'heads/main'
-                });
+                const branchName = `wolf/${cveId}`;
 
                 // Check if branch already exists
                 try {
                   await github.rest.git.getRef({
                     owner: context.repo.owner,
                     repo: context.repo.repo,
-                    ref: `heads/${branch}`
+                    ref: `heads/${branchName}`
                   });
-                  console.log(`Branch ${branch} already exists, skipping`);
+                  console.log(`Branch ${branchName} already exists, skipping`);
                   continue;
                 } catch (e) {
                   // Branch doesn't exist, continue
                 }
 
-                // Create new branch and check it out
-                execSync(`git checkout -b ${branch}`, { stdio: 'inherit' });
+                // Get main branch ref
+                const { data: mainRef } = await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: 'heads/main'
+                });
+
+                // Create new branch pointing to main
+                await github.rest.git.createRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `refs/heads/${branchName}`,
+                  sha: mainRef.object.sha
+                });
+
+                console.log(`Created branch ${branchName}`);
 
                 // Get vulnerability details
                 const vulnerability = alert.security_advisory.vulnerabilities[0];
-                const patchedVersions = vulnerability?.first_patched_version?.identifier || 'See advisory';
+                const patchedVersion = vulnerability?.first_patched_version?.identifier || 'See advisory';
+                const vulnerableVersionRange = vulnerability?.vulnerable_version_range || 'Unknown';
 
-                let fixDescription = '';
-
-                // Read package.json and package-lock.json
-                const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-                const packageLock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
-
-                // Find parent package that depends on the vulnerable transitive dependency
-                let parentPackage = null;
-                let parentVersion = null;
-
-                // Check all dependencies in package.json
-                const allDeps = {
-                  ...packageJson.dependencies,
-                  ...packageJson.devDependencies,
-                  ...packageJson.peerDependencies,
-                  ...packageJson.optionalDependencies
-                };
-
-                // Look through package-lock to find which direct dependency brings in the vulnerable package
-                for (const [depName, depVersion] of Object.entries(allDeps)) {
-                  const lockEntry = packageLock.packages?.[`node_modules/${depName}`];
-                  if (lockEntry?.dependencies?.[packageName]) {
-                    console.log(`Found parent dependency: ${depName}@${depVersion} → ${packageName}`);
-                    parentPackage = depName;
-                    parentVersion = depVersion;
-                    break;
-                  }
+                // Get conflicting dependencies info if available
+                let conflictingDeps = '';
+                if (alert.dependency.manifest_path) {
+                  conflictingDeps = `\n**Manifest:** \`${alert.dependency.manifest_path}\``;
                 }
-
-                if (parentPackage) {
-                  console.log(`Updating parent dependency ${parentPackage} to fix transitive ${packageName} vulnerability`);
-
-                  // Remove override if it exists and write to disk BEFORE npm install
-                  let removedOverride = false;
-                  if (packageJson.overrides && packageJson.overrides[packageName]) {
-                    console.log(`Removing override locking ${packageName} to ${packageJson.overrides[packageName]}`);
-                    delete packageJson.overrides[packageName];
-                    if (Object.keys(packageJson.overrides).length === 0) {
-                      delete packageJson.overrides;
-                    }
-                    removedOverride = true;
-
-                    // Write package.json to disk BEFORE running npm install
-                    fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
-                    console.log('Wrote package.json without override to disk');
-                  }
-
-                  // Try to update parent package to latest
-                  try {
-                    console.log(`Running: npm install ${parentPackage}@latest`);
-                    execSync(`npm install ${parentPackage}@latest`, { stdio: 'inherit' });
-
-                    // Get the new version
-                    const updatedPackageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-                    const newParentVersion = updatedPackageJson.dependencies?.[parentPackage] ||
-                                           updatedPackageJson.devDependencies?.[parentPackage];
-
-                    fixDescription = `Updated \`${parentPackage}\` from \`${parentVersion}\` to \`${newParentVersion}\` to resolve transitive \`${packageName}\` vulnerability.`;
-
-                    if (removedOverride) {
-                      fixDescription += `\n\nRemoved \`overrides.${packageName}\` to allow npm to resolve the patched version.`;
-                    }
-
-                    execSync('git add package.json package-lock.json', { stdio: 'inherit' });
-                    execSync(`git commit -m "Update ${parentPackage} to fix ${packageName} vulnerability (${cveId})"`, { stdio: 'inherit' });
-                  } catch (updateError) {
-                    console.error(`Failed to update ${parentPackage}: ${updateError.message}`);
-
-                    // Fallback: just remove override and regenerate lock file
-                    if (removedOverride) {
-                      fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
-                      execSync('rm -f package-lock.json', { stdio: 'inherit' });
-                      execSync('npm install', { stdio: 'inherit' });
-                      execSync('git add package.json package-lock.json', { stdio: 'inherit' });
-                      execSync(`git commit -m "Remove ${packageName} override and regenerate lock file"`, { stdio: 'inherit' });
-
-                      fixDescription = `Removed \`overrides.${packageName}\` and regenerated package-lock.json. Could not automatically update ${parentPackage}.`;
-                    } else {
-                      fixDescription = `Could not automatically fix transitive dependency. Manual update of ${parentPackage} required.`;
-                    }
-                  }
-                } else {
-                  console.log(`Could not identify parent dependency for ${packageName}`);
-                  fixDescription = `Could not automatically identify which dependency to update for transitive ${packageName} vulnerability.`;
-                }
-
-                // Push branch
-                execSync(`git push origin ${branch}`, { stdio: 'inherit' });
 
                 // Create PR
                 const pr = await github.rest.pulls.create({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  title: `Fix ${cveId}: Update ${packageName}`,
-                  head: branch,
+                  title: `🐺 Fix ${cveId}: ${packageName}`,
+                  head: `wolf/${cveId}`,
                   base: 'main',
                   draft: true,
-                  body: `## 🐺 Dependabot Wolf - Experimental Fix\n\n` +
+                  body: `## 🐺 Dependabot Wolf\n\n` +
+                        `Dependabot got stuck. Wolf called Copilot.\n\n` +
+                        `---\n\n` +
+                        `**Package:** \`${packageName}\`\n` +
                         `**CVE:** ${cveId}\n` +
                         `**Severity:** ${alert.security_advisory.severity}\n` +
-                        `**Vulnerable Package:** ${packageName}${isTransitive ? ' (transitive)' : ''}\n` +
-                        `**Patched Version:** ${patchedVersions}\n` +
-                        `**Advisory:** ${alert.security_advisory.html_url}\n\n` +
-                        `### What Happened\n\n` +
+                        `**Vulnerable Range:** ${vulnerableVersionRange}\n` +
+                        `**Patched Version:** ${patchedVersion}\n` +
+                        `**Advisory:** ${alert.security_advisory.html_url}${conflictingDeps}\n\n` +
+                        `### The Problem\n\n` +
                         `Dependabot said:\n` +
                         `> **"Dependabot cannot update ${packageName} to a non-vulnerable version"**\n\n` +
-                        `Wolf tried a simple approach: just update the dependencies and see if Copilot can fix it.\n\n` +
-                        `### What Changed\n\n` +
-                        `${fixDescription}\n\n` +
                         `---\n\n` +
                         `@github-copilot workspace\n\n` +
-                        `This PR updates dependencies to fix a security vulnerability. The updates may include breaking changes.\n\n` +
-                        `**Please try to make this work:**\n` +
-                        `1. Check what changed in the updated dependencies (CHANGELOGs, release notes)\n` +
-                        `2. Find code in this repo that uses the updated packages\n` +
-                        `3. Update function calls, API usage, imports, configurations to work with new versions\n` +
-                        `4. Explain what you changed\n\n` +
-                        `Let's see if you can do better than Dependabot's native resolution!`
+                        `Fix this security vulnerability. Dependabot couldn't figure it out - conflicting dependencies, complex dependency graph, whatever.\n\n` +
+                        `**Your job:**\n` +
+                        `1. Figure out what needs to be updated\n` +
+                        `2. Update the dependencies (package.json, lockfiles, whatever)\n` +
+                        `3. Fix any breaking changes in the code\n` +
+                        `4. Make it work\n\n` +
+                        `That's it. Fix it.`
                 });
 
                 console.log(`✓ Created PR #${pr.data.number} for ${cveId}`);
-
-                // Switch back to main
-                execSync('git checkout main', { stdio: 'inherit' });
               } catch (error) {
                 console.error(`✗ Failed to create PR for ${cveId}: ${error.message}`);
-                // Try to switch back to main even if there's an error
-                try {
-                  execSync('git checkout main', { stdio: 'inherit' });
-                } catch (e) {
-                  console.error('Failed to switch back to main branch');
-                }
               }
             }
