@@ -26,16 +26,18 @@ That's it. Copilot does everything else.
 
 ### 1. Create a PAT
 
-GITHUB_TOKEN can't read Dependabot alerts. You need a **classic PAT** (fine-grained tokens may fail silently):
+GITHUB_TOKEN can't read Dependabot alerts. Create a fine-grained PAT:
 
-1. Go to **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
-2. Click **Generate new token (classic)**
-3. **Note**: `dependabot-wolf`
-4. **Scopes**:
-   - ✅ `repo` (Full control of private repositories) ⚠️ REQUIRED for assigning to Copilot
-5. Click **Generate token** and copy it
-
-**Why classic token?** Fine-grained tokens can't assign issues to Copilot due to GraphQL permissions.
+1. Go to **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+2. Click **Generate new token**
+3. **Token name**: `dependabot-wolf`
+4. **Repository access**: Select the repository
+5. **Repository permissions**:
+   - **Dependabot alerts**: Read-only ⚠️ REQUIRED
+   - **Issues**: Read and write ⚠️ REQUIRED
+   - **Metadata**: Read-only (auto-selected)
+   - **Copilot Requests**: Read-only ⚠️ REQUIRED for assigning to Copilot
+6. Click **Generate token** and copy it
 
 ### 2. Add Secret to Repository
 
