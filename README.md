@@ -33,13 +33,15 @@ GITHUB_TOKEN can't read Dependabot alerts. Create a fine-grained PAT:
 3. **Token name**: `dependabot-wolf`
 4. **Repository access**: Select the repository
 5. **Repository permissions**:
-   - **Actions**: Read and write ⚠️
-   - **Contents**: Read and write ⚠️
-   - **Dependabot alerts**: Read-only ⚠️
-   - **Issues**: Read and write ⚠️
-   - **Pull requests**: Read and write ⚠️
+   - **Actions**: Read and write
+   - **Contents**: Read and write
+   - **Dependabot alerts**: Read-only
+   - **Issues**: Read and write
+   - **Pull requests**: Read and write
    - **Metadata**: Read-only (auto-selected)
 6. Click **Generate token** and copy it
+
+**Why these permissions?** To assign issues to Copilot and let it create PRs to fix vulnerabilities. [More details](https://github.com/orgs/community/discussions/164267).
 
 ### 2. Add Secret to Repository
 
@@ -97,10 +99,13 @@ The workflow automatically assigns issues to Copilot. Just click the "Assign to 
 ## FAQ
 
 **Q: What does Wolf actually do?**
-A: Finds stuck Dependabot alerts, creates an issue, tags Copilot. That's it.
+A: Finds stuck Dependabot alerts, creates an issue, assigns it to Copilot. That's it.
 
-**Q: Will Copilot fix it?**
-A: Sometimes. Always review and test any PRs Copilot creates.
+**Q: Will Copilot actually fix it?**
+A: Maybe, maybe not. Copilot might not figure it out either - but at least it'll try harder than Dependabot. When Dependabot says "cannot update," it just gives up. Copilot will actually attempt to update dependencies, fix breaking changes, and create a PR. Worth a shot.
+
+**Q: Should I trust Copilot's fixes?**
+A: No. Always review and test any PRs Copilot creates. These involve dependency updates and potential breaking changes.
 
 **Q: Does this work with non-npm projects?**
 A: Should work for any package manager. Only tested with npm.
