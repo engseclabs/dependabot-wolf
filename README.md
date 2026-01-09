@@ -33,10 +33,12 @@ GITHUB_TOKEN can't read Dependabot alerts. Create a fine-grained PAT:
 3. **Token name**: `dependabot-wolf`
 4. **Repository access**: Select the repository
 5. **Repository permissions**:
-   - **Dependabot alerts**: Read-only ⚠️ REQUIRED
-   - **Issues**: Read and write ⚠️ REQUIRED
+   - **Actions**: Read and write
+   - **Contents**: Read and write
+   - **Dependabot alerts**: Read-only ⚠️
+   - **Issues**: Read and write ⚠️
+   - **Pull requests**: Read and write
    - **Metadata**: Read-only (auto-selected)
-   - **Copilot Requests**: Read-only ⚠️ REQUIRED for assigning to Copilot
 6. Click **Generate token** and copy it
 
 ### 2. Add Secret to Repository
