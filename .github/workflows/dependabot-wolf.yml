@@ -93,14 +93,33 @@ jobs:
 
               console.log(`Created issue #${issue.data.number} for ${cve}`);
 
-              // Assign to Copilot (this is how you invoke it)
+              // Assign to Copilot using GraphQL (REST API doesn't work)
               try {
-                await github.rest.issues.addAssignees({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: issue.data.number,
-                  assignees: ['copilot']
-                });
+                // Get Copilot's actor ID
+                const copilotQuery = `query {
+                  repository(owner: "${context.repo.owner}", name: "${context.repo.repo}") {
+                    suggestedActors(loginNames:"copilot", capabilities: [CAN_BE_ASSIGNED], first: 1) {
+                      nodes { login ... on Bot { id } }
+                    }
+                  }
+                }`;
+
+                const actorResult = await github.graphql(copilotQuery);
+                const copilotId = actorResult.repository.suggestedActors.nodes[0]?.id;
+
+                if (!copilotId) {
+                  console.log('Copilot not available for assignment');
+                  continue;
+                }
+
+                // Assign the issue to Copilot
+                const assignMutation = `mutation {
+                  replaceActorsForAssignable(input: {assignableId: "${issue.data.node_id}", actorIds: ["${copilotId}"]}) {
+                    assignable { ... on Issue { assignees(first: 1) { nodes { login } } } }
+                  }
+                }`;
+
+                await github.graphql(assignMutation);
                 console.log(`Assigned issue #${issue.data.number} to Copilot`);
               } catch (error) {
                 console.log(`Could not assign to Copilot: ${error.message}`);
