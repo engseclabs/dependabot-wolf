@@ -61,26 +61,23 @@ jobs:
                 continue;
               }
 
-              // Build issue body with only what Copilot needs to fix
+              // Build issue body with Dependabot alert data
               const vuln = alert.security_vulnerability;
               const dep = alert.dependency;
+              const advisory = alert.security_advisory;
 
-              const patchedVersion = vuln.first_patched_version?.identifier || 'latest';
-              const isTransitive = dep.relationship === 'transitive';
+              const patchedVersion = vuln.first_patched_version?.identifier || 'See advisory';
+              const vulnerableRange = vuln.vulnerable_version_range || 'Unknown';
 
-              let issueBody;
-              if (isTransitive) {
-                // For transitive deps, Copilot needs to know which direct dependency to update
-                issueBody = `Fix ${cve} by updating \`${pkg}\` to version ${patchedVersion} or higher.\n\n` +
-                  `This is a transitive dependency in \`${dep.manifest_path}\`. ` +
-                  `You'll need to update the parent dependency that brings it in.\n\n` +
-                  `Alert: ${alert.html_url}`;
-              } else {
-                // For direct deps, just tell Copilot what version to update to
-                issueBody = `Update \`${pkg}\` to version ${patchedVersion} or higher to fix ${cve}.\n\n` +
-                  `Manifest: \`${dep.manifest_path}\`\n\n` +
-                  `Alert: ${alert.html_url}`;
-              }
+              const issueBody = `Fix ${cve} in \`${pkg}\`\n\n` +
+                `**Severity:** ${advisory.severity}\n` +
+                `**Package:** \`${pkg}\`\n` +
+                `**Ecosystem:** ${dep.package.ecosystem}\n` +
+                `**Manifest:** \`${dep.manifest_path}\`\n` +
+                `**Vulnerable range:** ${vulnerableRange}\n` +
+                `**Patched version:** ${patchedVersion}\n\n` +
+                `**Dependabot alert:** ${alert.html_url}\n` +
+                `**Advisory:** https://github.com/advisories/${advisory.ghsa_id}`;
 
               // Create issue
               const issue = await github.rest.issues.create({

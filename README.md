@@ -71,26 +71,23 @@ Done! The workflow runs daily, or trigger manually in Actions tab.
 
 ## What Gets Created
 
-Each stuck alert gets a simple issue with just what Copilot needs:
+Each stuck alert gets an issue with the Dependabot data:
 
-**For transitive dependencies:**
 ```
-Fix CVE-2025-64756 by updating `glob` to version 10.5.0 or higher.
+Fix CVE-2025-64756 in `glob`
 
-This is a transitive dependency in `package-lock.json`.
-You'll need to update the parent dependency that brings it in.
+**Severity:** high
+**Package:** `glob`
+**Ecosystem:** npm
+**Manifest:** `package-lock.json`
+**Vulnerable range:** >= 10.2.0, < 10.5.0
+**Patched version:** 10.5.0
 
-Alert: https://github.com/.../dependabot/21
+**Dependabot alert:** https://github.com/.../dependabot/21
+**Advisory:** https://github.com/advisories/GHSA-...
 ```
 
-**For direct dependencies:**
-```
-Update `package-name` to version 1.2.3 or higher to fix CVE-2025-XXXXX.
-
-Manifest: `package.json`
-
-Alert: https://github.com/.../dependabot/21
-```
+Wolf just passes the Dependabot data to Copilot. Copilot figures out what to do.
 
 ## Invoking Copilot
 
