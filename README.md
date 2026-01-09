@@ -24,21 +24,31 @@ That's it. Copilot does everything else.
 
 ## Quick Start
 
-### 1. Add Workflow File
+### 1. Create a PAT
+
+GitHub's default `GITHUB_TOKEN` can't read Dependabot alerts. Create a fine-grained PAT:
+
+1. **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+2. **Generate new token**
+3. **Repository access**: Select your repository
+4. **Permissions**: `Security events: read-only`, `Issues: read and write`
+5. Copy the token
+
+### 2. Add PAT as Secret
+
+1. Repo **Settings** → **Secrets and variables** → **Actions**
+2. **New repository secret**
+3. Name: `DEPENDABOT_PAT`, Value: your token
+
+### 3. Add Workflow File
 
 Copy [`.github/workflows/dependabot-wolf.yml`](.github/workflows/dependabot-wolf.yml) to your repository.
 
-The workflow runs:
-- **Daily** at midnight (via cron)
-- **Manually** via the Actions tab
+### 4. Enable Dependabot Alerts
 
-### 2. Enable Dependabot Alerts
+**Settings** → **Code security and analysis** → Enable **Dependabot alerts**
 
-If not already enabled:
-1. Go to **Settings** → **Code security and analysis**
-2. Enable **Dependabot alerts**
-
-Done! Wolf will start monitoring for stuck alerts.
+Done!
 
 ## How It Works
 
