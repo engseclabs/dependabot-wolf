@@ -36,7 +36,7 @@ GITHUB_TOKEN can't read Dependabot alerts. Create a fine-grained PAT:
    - **Contents**: Read-only
    - **Dependabot alerts**: Read-only ⚠️
    - **Issues**: Read and write ⚠️
-   - **Pull requests**: Read and write
+   - **Pull requests**: Read-only
    - **Metadata**: Read-only (auto-selected)
 6. Click **Generate token** and copy it
 
