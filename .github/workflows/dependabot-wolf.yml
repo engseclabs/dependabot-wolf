@@ -13,8 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Find alerts Dependabot cannot fix
-        id: find-alerts
+      - name: Call Copilot
         uses: actions/github-script@v7
         with:
           script: |
@@ -25,123 +24,46 @@ jobs:
               state: 'open'
             });
 
-            console.log(`Found ${alerts.data.length} open Dependabot alerts`);
+            // Check if Dependabot created PRs
+            const prs = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100
+            });
 
-            // Filter for alerts without open PRs
-            // These are alerts where Dependabot says:
-            // "Dependabot cannot update DEPENDENCY to a non-vulnerable version"
-            // Happens when:
-            // - Dependency graph is complex
-            // - Fix requires updating multiple dependencies
-            // - Updates include major/breaking versions
-            // - Impossible to upgrade without breaking the dependency graph
-            const stuckAlerts = [];
-            for (const alert of alerts.data) {
-              const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
+            // Find stuck alerts (no Dependabot PR)
+            const stuckAlerts = alerts.data.filter(alert => {
               const packageName = alert.dependency.package.name;
-              const isTransitive = alert.dependency.relationship === 'transitive';
+              const hasOpenPR = prs.data.some(pr =>
+                pr.user.login === 'dependabot[bot]' && pr.title.includes(packageName)
+              );
+              return !hasOpenPR;
+            });
 
-              console.log(`Checking alert ${alert.number} (${cveId}): ${packageName} - ${isTransitive ? 'transitive' : 'direct'}`);
-
-              // Check if Dependabot created a PR for this
-              const prs = await github.rest.pulls.list({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: 'open',
-                per_page: 100
-              });
-
-              const hasOpenPR = prs.data.some(pr => {
-                return pr.user.login === 'dependabot[bot]' &&
-                       pr.title.includes(packageName);
-              });
-
-              if (!hasOpenPR) {
-                console.log(`  -> Found alert where Dependabot cannot create PR: ${packageName} (${isTransitive ? 'transitive' : 'direct'})`);
-                stuckAlerts.push(alert);
-              } else {
-                console.log(`  -> Has open PR, skipping`);
-              }
+            if (stuckAlerts.length === 0) {
+              console.log('No stuck alerts found');
+              return;
             }
 
-            console.log(`Found ${stuckAlerts.length} alerts where Dependabot cannot create PRs`);
-            return stuckAlerts;
+            console.log(`Found ${stuckAlerts.length} stuck alerts`);
 
-      - name: Hand off to Copilot
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const stuckAlerts = ${{ steps.find-alerts.outputs.result }};
-
-            console.log(`Handing ${stuckAlerts.length} stuck alerts to Copilot`);
-
-            for (const alert of stuckAlerts) {
+            // Build list of stuck alerts
+            const alertList = stuckAlerts.map(alert => {
               const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
-              const packageName = alert.dependency.package.name;
+              const pkg = alert.dependency.package.name;
+              const severity = alert.security_advisory.severity;
+              const url = alert.security_advisory.html_url;
+              return `- **${cveId}** (${severity}): \`${pkg}\` - ${url}`;
+            }).join('\n');
 
-              console.log(`Processing ${packageName} (${cveId})`);
+            // Create one issue for all stuck alerts
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🐺 Dependabot Wolf: ${stuckAlerts.length} stuck alert${stuckAlerts.length > 1 ? 's' : ''}`,
+              labels: ['dependabot-wolf'],
+              body: `Dependabot got stuck. Fix it.\n\n${alertList}\n\n@github-copilot workspace fix these vulnerabilities`
+            });
 
-              try {
-                // Check if issue already exists for this CVE
-                const existingIssues = await github.rest.issues.listForRepo({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  state: 'open',
-                  labels: 'dependabot-wolf',
-                  per_page: 100
-                });
-
-                const issueExists = existingIssues.data.some(issue =>
-                  issue.title.includes(cveId)
-                );
-
-                if (issueExists) {
-                  console.log(`Issue already exists for ${cveId}, skipping`);
-                  continue;
-                }
-
-                // Get vulnerability details
-                const vulnerability = alert.security_advisory.vulnerabilities[0];
-                const patchedVersion = vulnerability?.first_patched_version?.identifier || 'See advisory';
-                const vulnerableVersionRange = vulnerability?.vulnerable_version_range || 'Unknown';
-
-                // Get conflicting dependencies info if available
-                let manifestInfo = '';
-                if (alert.dependency.manifest_path) {
-                  manifestInfo = `\n**Manifest:** \`${alert.dependency.manifest_path}\``;
-                }
-
-                // Create issue
-                const issue = await github.rest.issues.create({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  title: `🐺 ${cveId}: Fix ${packageName} vulnerability`,
-                  labels: ['dependabot-wolf', 'security'],
-                  body: `## 🐺 Dependabot Wolf\n\n` +
-                        `Dependabot got stuck. Wolf called Copilot.\n\n` +
-                        `---\n\n` +
-                        `**Package:** \`${packageName}\`\n` +
-                        `**CVE:** ${cveId}\n` +
-                        `**Severity:** ${alert.security_advisory.severity}\n` +
-                        `**Vulnerable Range:** ${vulnerableVersionRange}\n` +
-                        `**Patched Version:** ${patchedVersion}\n` +
-                        `**Advisory:** ${alert.security_advisory.html_url}${manifestInfo}\n\n` +
-                        `### The Problem\n\n` +
-                        `Dependabot said:\n` +
-                        `> **"Dependabot cannot update ${packageName} to a non-vulnerable version"**\n\n` +
-                        `---\n\n` +
-                        `@github-copilot workspace\n\n` +
-                        `Fix this security vulnerability. Dependabot couldn't figure it out - conflicting dependencies, complex dependency graph, whatever.\n\n` +
-                        `**Your job:**\n` +
-                        `1. Figure out what needs to be updated\n` +
-                        `2. Update the dependencies (package.json, lockfiles, whatever)\n` +
-                        `3. Fix any breaking changes in the code\n` +
-                        `4. Make it work\n\n` +
-                        `That's it. Fix it.`
-                });
-
-                console.log(`✓ Created issue #${issue.data.number} for ${cveId}`);
-              } catch (error) {
-                console.error(`✗ Failed to create issue for ${cveId}: ${error.message}`);
-              }
-            }
+            console.log(`Created issue #${issue.data.number}`)

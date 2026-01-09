@@ -14,14 +14,13 @@ This happens with complex dependency graphs - fixing the vulnerability requires 
 
 ## What Wolf Does
 
-Wolf handles it:
+Wolf just finds stuck alerts and calls Copilot:
 
-1. **Finds** the stuck alerts (no Dependabot PR exists)
-2. **Creates** an issue with the vulnerability details
-3. **Calls** `@github-copilot workspace` to fix it
-4. **Copilot** creates a PR with the fix
+1. Finds Dependabot alerts without PRs
+2. Creates one issue listing them all
+3. Tags `@github-copilot workspace`
 
-That's it. Wolf doesn't try to fix anything - just creates an issue and hands it to Copilot.
+That's it. Copilot does everything else.
 
 ## Quick Start
 
@@ -45,47 +44,38 @@ Done! Wolf will start monitoring for stuck alerts.
 
 Runs daily (or on demand):
 
-1. Checks for Dependabot alerts without PRs
-2. Creates an issue for each stuck alert
-3. Tags `@github-copilot workspace` with the vulnerability details
-4. Copilot responds to the issue and creates a PR with the fix
+1. Finds Dependabot alerts without PRs
+2. Creates one issue with all stuck alerts
+3. Tags `@github-copilot workspace fix these vulnerabilities`
+4. Copilot creates PRs
 
-Wolf just creates the issue. Copilot does everything else.
+Wolf does nothing else. Just finds stuck alerts and calls Copilot.
 
 ## What Copilot Sees
 
-Each issue includes this prompt for Copilot:
+One issue listing all stuck alerts:
 
 ```
-@github-copilot workspace
+Dependabot got stuck. Fix it.
 
-Fix this security vulnerability. Dependabot couldn't figure it out -
-conflicting dependencies, complex dependency graph, whatever.
+- **CVE-2025-64756** (high): `glob` - https://github.com/advisories/GHSA-...
+- **CVE-2024-XXXXX** (medium): `package-name` - https://github.com/advisories/...
 
-Your job:
-1. Figure out what needs to be updated
-2. Update the dependencies (package.json, lockfiles, whatever)
-3. Fix any breaking changes in the code
-4. Make it work
-
-That's it. Fix it.
+@github-copilot workspace fix these vulnerabilities
 ```
 
-Plus all the vulnerability details (CVE, severity, patched version, advisory link).
+That's it. Copilot figures out the rest.
 
 ## FAQ
 
-**Q: Does Wolf actually fix the vulnerability?**
-A: No. Wolf just creates an issue and tags Copilot. Copilot creates the PR with the fix.
+**Q: What does Wolf actually do?**
+A: Finds stuck Dependabot alerts, creates an issue, tags Copilot. That's it.
 
-**Q: Will Copilot actually fix it?**
-A: Sometimes. Copilot is pretty good at dependency upgrades and handling breaking changes. But always review and test.
-
-**Q: Is it safe to auto-merge?**
-A: No. Always review. Copilot's PRs involve dependency updates and potential breaking changes.
+**Q: Will Copilot fix it?**
+A: Sometimes. Always review and test any PRs Copilot creates.
 
 **Q: Does this work with non-npm projects?**
-A: Should work for any package manager (pip, Maven, Gradle, Go, etc.). Only tested with npm so far.
+A: Should work for any package manager. Only tested with npm.
 
 ## License
 
