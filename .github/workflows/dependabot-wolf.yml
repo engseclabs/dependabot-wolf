@@ -61,35 +61,33 @@ jobs:
                 continue;
               }
 
-              // Build detailed issue body
+              // Build issue body with only what Copilot needs to fix
               const vuln = alert.security_vulnerability;
-              const advisory = alert.security_advisory;
               const dep = alert.dependency;
 
-              const patchedVersion = vuln.first_patched_version?.identifier || 'See advisory';
-              const vulnerableRange = vuln.vulnerable_version_range || 'Unknown';
-              const relationship = dep.relationship === 'transitive' ? ' (transitive dependency)' : '';
-              const refs = advisory.references?.map(ref => `- ${ref.url}`).join('\n') || 'See advisory';
+              const patchedVersion = vuln.first_patched_version?.identifier || 'latest';
+              const isTransitive = dep.relationship === 'transitive';
 
-              const issueBody = `## Security Alert: ${cve}\n\n` +
-                `**Severity:** ${advisory.severity}\n` +
-                `**Package:** \`${pkg}\`${relationship}\n` +
-                `**Manifest:** \`${dep.manifest_path}\`\n` +
-                `**Vulnerable Range:** ${vulnerableRange}\n` +
-                `**Patched Version:** ${patchedVersion}\n\n` +
-                `### Summary\n${advisory.summary}\n\n` +
-                `### Description\n${advisory.description}\n\n` +
-                `### References\n${refs}\n\n` +
-                `---\n\n` +
-                `**Dependabot Alert:** ${alert.html_url}\n` +
-                `**Advisory:** https://github.com/advisories/${advisory.ghsa_id}`;
+              let issueBody;
+              if (isTransitive) {
+                // For transitive deps, Copilot needs to know which direct dependency to update
+                issueBody = `Fix ${cve} by updating \`${pkg}\` to version ${patchedVersion} or higher.\n\n` +
+                  `This is a transitive dependency in \`${dep.manifest_path}\`. ` +
+                  `You'll need to update the parent dependency that brings it in.\n\n` +
+                  `Alert: ${alert.html_url}`;
+              } else {
+                // For direct deps, just tell Copilot what version to update to
+                issueBody = `Update \`${pkg}\` to version ${patchedVersion} or higher to fix ${cve}.\n\n` +
+                  `Manifest: \`${dep.manifest_path}\`\n\n` +
+                  `Alert: ${alert.html_url}`;
+              }
 
               // Create issue
               const issue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `🐺 ${cve}: Fix ${pkg} vulnerability`,
-                labels: ['dependabot-wolf', 'security'],
+                title: `Fix ${cve}: ${pkg}`,
+                labels: ['dependabot-wolf'],
                 body: issueBody
               });
 

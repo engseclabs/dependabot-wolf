@@ -65,28 +65,30 @@ Done! The workflow runs daily, or trigger manually in Actions tab.
 
 ## What Gets Created
 
-Each stuck alert gets a detailed issue with:
+Each stuck alert gets a simple issue with just what Copilot needs:
 
-- **Full vulnerability description** including PoC and remediation steps
-- **Vulnerable version range** and **patched version**
-- **Whether it's a transitive or direct dependency**
-- **Manifest path** (which lockfile)
-- **Links to advisory and Dependabot alert**
+**For transitive dependencies:**
+```
+Fix CVE-2025-64756 by updating `glob` to version 10.5.0 or higher.
 
-Example: https://github.com/engseclabs/dependabot-wolf/issues/38
+This is a transitive dependency in `package-lock.json`.
+You'll need to update the parent dependency that brings it in.
+
+Alert: https://github.com/.../dependabot/21
+```
+
+**For direct dependencies:**
+```
+Update `package-name` to version 1.2.3 or higher to fix CVE-2025-XXXXX.
+
+Manifest: `package.json`
+
+Alert: https://github.com/.../dependabot/21
+```
 
 ## Invoking Copilot
 
-The workflow tries to assign issues to Copilot automatically. This requires:
-- **GitHub Copilot Pro** or **Enterprise** subscription
-- **Copilot coding agent** feature enabled
-
-If auto-assignment doesn't work, manually assign issues to Copilot:
-1. Open the issue
-2. Click "Assignees" on the right
-3. Search for and select "Copilot"
-
-Copilot will then analyze the issue and create a PR.
+The workflow automatically assigns issues to Copilot. Just click the "Assign to Copilot" button in the issue sidebar.
 
 ## FAQ
 
