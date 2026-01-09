@@ -1,70 +1,77 @@
 name: Dependabot Wolf
 on:
   schedule:
-    - cron: '0 0 * * *'  # Daily
-  workflow_dispatch:     # Manual trigger
+    - cron: '0 0 * * *'  # Daily at midnight
+  workflow_dispatch:
 
 jobs:
-  fix-stuck-alerts:
+  call-copilot:
     runs-on: ubuntu-latest
     permissions:
       issues: write
-      security-events: read
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Call Copilot
-        uses: actions/github-script@v7
+      - uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.DEPENDABOT_PAT }}
           script: |
-            // Get all open Dependabot alerts
+            // Get all Dependabot alerts
             const alerts = await github.rest.dependabot.listAlertsForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
               state: 'open'
             });
 
-            // Check if Dependabot created PRs
+            // Get all open PRs
             const prs = await github.rest.pulls.list({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              state: 'open',
-              per_page: 100
+              state: 'open'
             });
 
-            // Find stuck alerts (no Dependabot PR)
+            // Find stuck alerts (alerts without Dependabot PRs)
             const stuckAlerts = alerts.data.filter(alert => {
-              const packageName = alert.dependency.package.name;
-              const hasOpenPR = prs.data.some(pr =>
-                pr.user.login === 'dependabot[bot]' && pr.title.includes(packageName)
+              const pkg = alert.dependency.package.name;
+              return !prs.data.some(pr =>
+                pr.user.login === 'dependabot[bot]' && pr.title.includes(pkg)
               );
-              return !hasOpenPR;
             });
 
             if (stuckAlerts.length === 0) {
-              console.log('No stuck alerts found');
+              console.log('No stuck alerts');
               return;
             }
 
             console.log(`Found ${stuckAlerts.length} stuck alerts`);
 
-            // Build list of stuck alerts
-            const alertList = stuckAlerts.map(alert => {
-              const cveId = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
+            // For each stuck alert, create an issue if one doesn't exist
+            for (const alert of stuckAlerts) {
+              const cve = alert.security_advisory.cve_id || alert.security_advisory.ghsa_id;
               const pkg = alert.dependency.package.name;
-              const severity = alert.security_advisory.severity;
-              const url = alert.security_advisory.html_url;
-              return `- **${cveId}** (${severity}): \`${pkg}\` - ${url}`;
-            }).join('\n');
 
-            // Create one issue for all stuck alerts
-            const issue = await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: `🐺 Dependabot Wolf: ${stuckAlerts.length} stuck alert${stuckAlerts.length > 1 ? 's' : ''}`,
-              labels: ['dependabot-wolf'],
-              body: `Dependabot got stuck. Fix it.\n\n${alertList}\n\n@github-copilot workspace fix these vulnerabilities`
-            });
+              // Check if issue already exists
+              const existing = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: 'open',
+                labels: 'dependabot-wolf'
+              });
 
-            console.log(`Created issue #${issue.data.number}`)
+              if (existing.data.some(issue => issue.title.includes(cve))) {
+                console.log(`Issue already exists for ${cve}`);
+                continue;
+              }
+
+              // Create issue
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🐺 ${cve}: ${pkg}`,
+                labels: ['dependabot-wolf'],
+                body: `**${alert.security_advisory.severity}** severity\n` +
+                      `**Package:** \`${pkg}\`\n` +
+                      `**Advisory:** ${alert.security_advisory.html_url}\n\n` +
+                      `@github-copilot workspace fix this`
+              });
+
+              console.log(`Created issue for ${cve}`);
+            }

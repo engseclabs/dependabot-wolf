@@ -22,59 +22,62 @@ Wolf just finds stuck alerts and calls Copilot:
 
 That's it. Copilot does everything else.
 
-## Quick Start
+## Setup
 
 ### 1. Create a PAT
 
-GitHub's default `GITHUB_TOKEN` can't read Dependabot alerts. Create a fine-grained PAT:
+GITHUB_TOKEN can't read Dependabot alerts. You need a fine-grained PAT:
 
-1. **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
-2. **Generate new token**
-3. **Repository access**: Select your repository
-4. **Permissions**: `Security events: read-only`, `Issues: read and write`
-5. Copy the token
+1. Go to **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens**
+2. Click **Generate new token**
+3. **Token name**: `dependabot-wolf`
+4. **Repository access**: Select the repository
+5. **Repository permissions**:
+   - **Dependabot alerts**: Read-only access ⚠️ THIS IS REQUIRED
+   - **Issues**: Read and write access
+6. Click **Generate token** and copy it
 
-### 2. Add PAT as Secret
+### 2. Add Secret to Repository
 
-1. Repo **Settings** → **Secrets and variables** → **Actions**
-2. **New repository secret**
-3. Name: `DEPENDABOT_PAT`, Value: your token
+1. Go to your repository **Settings** → **Secrets and variables** → **Actions**
+2. Click **New repository secret**
+3. **Name**: `DEPENDABOT_PAT`
+4. **Value**: Paste the token
+5. Click **Add secret**
 
-### 3. Add Workflow File
+### 3. Add Workflow
 
 Copy [`.github/workflows/dependabot-wolf.yml`](.github/workflows/dependabot-wolf.yml) to your repository.
 
-### 4. Enable Dependabot Alerts
+### 4. Enable Dependabot
 
 **Settings** → **Code security and analysis** → Enable **Dependabot alerts**
 
-Done!
+Done! The workflow runs daily, or trigger manually in Actions tab.
 
 ## How It Works
 
-Runs daily (or on demand):
-
-1. Finds Dependabot alerts without PRs
-2. Creates one issue with all stuck alerts
-3. Tags `@github-copilot workspace fix these vulnerabilities`
-4. Copilot creates PRs
-
-Wolf does nothing else. Just finds stuck alerts and calls Copilot.
+1. Gets all open Dependabot alerts
+2. Filters for stuck alerts (no Dependabot PR exists)
+3. For each stuck alert, creates an issue if one doesn't exist
+4. Tags `@github-copilot workspace fix this` in each issue
+5. Copilot creates PRs to fix them
 
 ## What Copilot Sees
 
-One issue listing all stuck alerts:
+Each stuck alert gets its own issue:
 
 ```
-Dependabot got stuck. Fix it.
+🐺 CVE-2025-64756: glob
 
-- **CVE-2025-64756** (high): `glob` - https://github.com/advisories/GHSA-...
-- **CVE-2024-XXXXX** (medium): `package-name` - https://github.com/advisories/...
+high severity
+Package: `glob`
+Advisory: https://github.com/advisories/GHSA-...
 
-@github-copilot workspace fix these vulnerabilities
+@github-copilot workspace fix this
 ```
 
-That's it. Copilot figures out the rest.
+Copilot creates a PR to fix it.
 
 ## FAQ
 
