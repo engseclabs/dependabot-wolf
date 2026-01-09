@@ -33,8 +33,8 @@ GITHUB_TOKEN can't read Dependabot alerts. Create a fine-grained PAT:
 3. **Token name**: `dependabot-wolf`
 4. **Repository access**: Select the repository
 5. **Repository permissions**:
-   - **Actions**: Read and write
-   - **Contents**: Read and write
+   - **Actions**: Read-only
+   - **Contents**: Read-only
    - **Dependabot alerts**: Read-only ⚠️
    - **Issues**: Read and write ⚠️
    - **Pull requests**: Read and write
