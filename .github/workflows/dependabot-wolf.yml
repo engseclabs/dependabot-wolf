@@ -62,6 +62,7 @@ jobs:
               }
 
               // Create issue
+              const advisory = alert.security_advisory.html_url || alert.html_url || 'See Dependabot alerts';
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -69,7 +70,7 @@ jobs:
                 labels: ['dependabot-wolf'],
                 body: `**${alert.security_advisory.severity}** severity\n` +
                       `**Package:** \`${pkg}\`\n` +
-                      `**Advisory:** ${alert.security_advisory.html_url}\n\n` +
+                      `**Advisory:** ${advisory}\n\n` +
                       `@github-copilot workspace fix this`
               });
 
