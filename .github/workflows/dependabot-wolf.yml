@@ -61,18 +61,50 @@ jobs:
                 continue;
               }
 
+              // Build detailed issue body
+              const vuln = alert.security_vulnerability;
+              const advisory = alert.security_advisory;
+              const dep = alert.dependency;
+
+              const patchedVersion = vuln.first_patched_version?.identifier || 'See advisory';
+              const vulnerableRange = vuln.vulnerable_version_range || 'Unknown';
+              const relationship = dep.relationship === 'transitive' ? ' (transitive dependency)' : '';
+              const refs = advisory.references?.map(ref => `- ${ref.url}`).join('\n') || 'See advisory';
+
+              const issueBody = `## Security Alert: ${cve}\n\n` +
+                `**Severity:** ${advisory.severity}\n` +
+                `**Package:** \`${pkg}\`${relationship}\n` +
+                `**Manifest:** \`${dep.manifest_path}\`\n` +
+                `**Vulnerable Range:** ${vulnerableRange}\n` +
+                `**Patched Version:** ${patchedVersion}\n\n` +
+                `### Summary\n${advisory.summary}\n\n` +
+                `### Description\n${advisory.description}\n\n` +
+                `### References\n${refs}\n\n` +
+                `---\n\n` +
+                `**Dependabot Alert:** ${alert.html_url}\n` +
+                `**Advisory:** https://github.com/advisories/${advisory.ghsa_id}`;
+
               // Create issue
-              const advisory = alert.security_advisory.html_url || alert.html_url || 'See Dependabot alerts';
-              await github.rest.issues.create({
+              const issue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                title: `🐺 ${cve}: ${pkg}`,
-                labels: ['dependabot-wolf'],
-                body: `**${alert.security_advisory.severity}** severity\n` +
-                      `**Package:** \`${pkg}\`\n` +
-                      `**Advisory:** ${advisory}\n\n` +
-                      `@github-copilot workspace fix this`
+                title: `🐺 ${cve}: Fix ${pkg} vulnerability`,
+                labels: ['dependabot-wolf', 'security'],
+                body: issueBody
               });
 
-              console.log(`Created issue for ${cve}`);
+              console.log(`Created issue #${issue.data.number} for ${cve}`);
+
+              // Assign to Copilot (this is how you invoke it)
+              try {
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.data.number,
+                  assignees: ['copilot']
+                });
+                console.log(`Assigned issue #${issue.data.number} to Copilot`);
+              } catch (error) {
+                console.log(`Could not assign to Copilot: ${error.message}`);
+              }
             }
