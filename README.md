@@ -47,28 +47,11 @@ Copy [`.github/workflows/dependabot-wolf.yml`](.github/workflows/dependabot-wolf
 
 Done. Runs daily at midnight, or manually via Actions tab.
 
-## Example Issue
-
-```
-Fix CVE-2025-64756 in `glob`
-
-**Severity:** high
-**Package:** `glob`
-**Ecosystem:** npm
-**Manifest:** `package-lock.json`
-**Vulnerable range:** >= 10.2.0, < 10.5.0
-**Patched version:** 10.5.0
-
-**Dependabot alert:** https://github.com/.../dependabot/21
-**Advisory:** https://github.com/advisories/GHSA-...
-```
-
-Assigned to Copilot. Copilot creates a PR to fix it.
-
 ## Notes
 
 - Always review PRs before merging
-- Tested with npm, should work with other package managers
+- Tested with npm and Go, should work with other package managers
+- "If I'm curt with you it's because time is a factor." - Mr. Wolf
 
 ## License
 
