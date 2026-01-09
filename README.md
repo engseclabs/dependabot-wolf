@@ -2,6 +2,9 @@
 
 When Dependabot gets stuck, Wolf shows up.
 
+<img width="959" height="399" alt="image" src="https://github.com/user-attachments/assets/d000fe9e-c187-40cb-b2aa-77611bd6d45e" />
+
+
 ## The Problem
 
 Dependabot says **"cannot update to a non-vulnerable version"** when dependency graphs are too complex. Alert sits there. Nobody fixes it.
