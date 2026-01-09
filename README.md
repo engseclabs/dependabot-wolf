@@ -59,25 +59,34 @@ Done! The workflow runs daily, or trigger manually in Actions tab.
 
 1. Gets all open Dependabot alerts
 2. Filters for stuck alerts (no Dependabot PR exists)
-3. For each stuck alert, creates an issue if one doesn't exist
-4. Tags `@github-copilot workspace fix this` in each issue
-5. Copilot creates PRs to fix them
+3. For each stuck alert, creates an issue with complete vulnerability details
+4. Attempts to assign the issue to Copilot
+5. Copilot (if available) creates PRs to fix them
 
-## What Copilot Sees
+## What Gets Created
 
-Each stuck alert gets its own issue:
+Each stuck alert gets a detailed issue with:
 
-```
-🐺 CVE-2025-64756: glob
+- **Full vulnerability description** including PoC and remediation steps
+- **Vulnerable version range** and **patched version**
+- **Whether it's a transitive or direct dependency**
+- **Manifest path** (which lockfile)
+- **Links to advisory and Dependabot alert**
 
-high severity
-Package: `glob`
-Advisory: https://github.com/advisories/GHSA-...
+Example: https://github.com/engseclabs/dependabot-wolf/issues/38
 
-@github-copilot workspace fix this
-```
+## Invoking Copilot
 
-Copilot creates a PR to fix it.
+The workflow tries to assign issues to Copilot automatically. This requires:
+- **GitHub Copilot Pro** or **Enterprise** subscription
+- **Copilot coding agent** feature enabled
+
+If auto-assignment doesn't work, manually assign issues to Copilot:
+1. Open the issue
+2. Click "Assignees" on the right
+3. Search for and select "Copilot"
+
+Copilot will then analyze the issue and create a PR.
 
 ## FAQ
 
